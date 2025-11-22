@@ -21,38 +21,7 @@ const CSRF_TOKEN = process.env.CSRF_TOKEN || (() => {
   return crypto.randomBytes(32).toString('hex');
 })();
 
-const sampleData = {
-  companyName: 'ESGenius Tech Solutions',
-  sector: 'technology',
-  region: 'north_america',
-  reportingYear: 2024,
-  environmental: {
-    scope1Emissions: '1200',
-    scope2Emissions: '2400',
-    energyConsumption: '8500',
-    renewableEnergyPercentage: '35',
-    waterWithdrawal: '1500',
-    wasteGenerated: '45',
-    wasteRecycled: '32'
-  },
-  social: {
-    totalEmployees: '150',
-    femaleEmployeesPercentage: '42',
-    employeeTurnoverRate: '8.5',
-    trainingHoursPerEmployee: '24',
-    communityInvestment: '125000',
-    lostTimeInjuryRate: '0.8'
-  },
-  governance: {
-    boardSize: '8',
-    independentDirectorsPercentage: '62',
-    femaleDirectorsPercentage: '38',
-    ethicsTrainingCompletion: '95',
-    corruptionIncidents: '0',
-    dataBreaches: '0'
-  },
-  userId: 'admin@esgenius.com'
-};
+const sampleData = null; // No sample data - users must enter their own data
 
 /**
  * Adds sample ESG data to the system with proper error handling and CSRF protection

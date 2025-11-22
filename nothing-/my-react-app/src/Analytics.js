@@ -2,6 +2,70 @@ import React, { useEffect, useState } from "react";
 import companyLogo from "./companyLogo.jpg";
 
 import { Pie, Line, Bar, Doughnut } from "react-chartjs-2";
+
+// Data normalization functions
+function normalizeData(data) {
+  return data
+    .map(item => {
+      let year = null;
+      if (item.timestamp) {
+        try {
+          year = new Date(item.timestamp).getFullYear();
+        } catch {
+          year = item.reportingYear || new Date().getFullYear();
+        }
+      }
+      
+      if (item.environmental || item.social || item.governance) {
+        const results = [];
+        ['environmental', 'social', 'governance'].forEach(cat => {
+          if (item[cat]) {
+            Object.entries(item[cat]).forEach(([key, value]) => {
+              if (key !== 'description' && value !== '' && !isNaN(parseFloat(value))) {
+                results.push({
+                  ...item,
+                  category: cat,
+                  metric: key,
+                  value: parseFloat(value),
+                  year,
+                  companyName: item.companyName,
+                  sector: item.sector,
+                  region: item.region
+                });
+              }
+            });
+          }
+        });
+        return results;
+      } else {
+        const category = (item.category || '').toLowerCase();
+        const value = parseFloat(item.value);
+        return [{
+          ...item,
+          year,
+          category,
+          value: isNaN(value) ? null : value
+        }];
+      }
+    })
+    .flat()
+    .filter(item => item.year && item.category && item.value !== null && ['environmental','social','governance'].includes(item.category));
+}
+
+function aggregateOverall(data) {
+  const agg = { environmental: { sum: 0, count: 0 }, social: { sum: 0, count: 0 }, governance: { sum: 0, count: 0 } };
+  data.forEach(item => {
+    if (['environmental','social','governance'].includes(item.category)) {
+      agg[item.category].sum += item.value;
+      agg[item.category].count += 1;
+    }
+  });
+  const envAvg = agg.environmental.count ? (agg.environmental.sum / agg.environmental.count).toFixed(2) : 0;
+  const socAvg = agg.social.count ? (agg.social.sum / agg.social.count).toFixed(2) : 0;
+  const govAvg = agg.governance.count ? (agg.governance.sum / agg.governance.count).toFixed(2) : 0;
+  const overall = [envAvg, socAvg, govAvg].every(x => x > 0) ? (((+envAvg) + (+socAvg) + (+govAvg)) / 3).toFixed(2) : 0;
+  return { environmental: +envAvg, social: +socAvg, governance: +govAvg, overall: +overall };
+}
 import {
   Chart as ChartJS,
   ArcElement,
@@ -93,16 +157,18 @@ const Analytics = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const currentUser = 'admin@esgenius.com'; // Backend-only user
+        const currentUser = 'admin@esgenius.com';
         
-        // Single API call for KPIs and data
+        // Try backend first
         const [backendKPIs, backendData] = await Promise.all([
           APIService.getESGKPIs(currentUser),
           APIService.getESGData(currentUser)
         ]);
         
-        if (backendKPIs && !backendKPIs.error && backendData && !backendData.error) {
-          // Use backend data
+        // Check if backend has data
+        const hasBackendData = backendKPIs && !backendKPIs.error && backendData && !backendData.error && backendData.length > 0;
+        
+        if (hasBackendData) {
           const convertedData = backendData.map(item => ({
             companyName: item.companyName,
             category: item.category,
@@ -115,14 +181,13 @@ const Analytics = () => {
           
           setData(convertedData);
           setKpis({
-            overallScore: Math.round(backendKPIs.overall_score || backendKPIs.overallScore || 0),
-            environmental: Math.round(backendKPIs.environmental_score || backendKPIs.environmental || 0),
-            social: Math.round(backendKPIs.social_score || backendKPIs.social || 0),
-            governance: Math.round(backendKPIs.governance_score || backendKPIs.governance || 0),
-            complianceRate: backendKPIs.complianceRate || 94
+            overallScore: Math.min(Math.round(backendKPIs.overall_score || backendKPIs.overallScore || 0), 100),
+            environmental: Math.min(Math.round(backendKPIs.environmental_score || backendKPIs.environmental || 0), 100),
+            social: Math.min(Math.round(backendKPIs.social_score || backendKPIs.social || 0), 100),
+            governance: Math.min(Math.round(backendKPIs.governance_score || backendKPIs.governance || 0), 100),
+            complianceRate: Math.min(backendKPIs.complianceRate || 0, 100)
           });
           
-          // Calculate category distribution from backend data
           const categoryCount = { environmental: 0, social: 0, governance: 0 };
           backendData.forEach(item => {
             if (categoryCount[item.category] !== undefined) {
@@ -131,7 +196,6 @@ const Analytics = () => {
           });
           setCategoryData(categoryCount);
           
-          // Calculate risk distribution
           const riskLevels = {
             high: categoryCount.environmental < 5 ? 3 : 1,
             medium: categoryCount.social < 5 ? 2 : 1,
@@ -139,42 +203,83 @@ const Analytics = () => {
           };
           setRiskData(riskLevels);
           
-          // Generate monthly trends from backend data
           const monthlyTrends = { 'Jan': 5, 'Feb': 8, 'Mar': 12, 'Apr': 15, 'May': 18, 'Jun': backendData.length };
           setMonthlyData(monthlyTrends);
         } else {
-          // Fallback to mock data if backend fails
-          setKpis({
-            overallScore: 75,
-            environmental: 72,
-            social: 78,
-            governance: 75,
-            complianceRate: 94
-          });
-          setCategoryData({ environmental: 8, social: 6, governance: 7 });
-          setRiskData({ high: 2, medium: 3, low: 5 });
-          setMonthlyData({ 'Jan': 5, 'Feb': 8, 'Mar': 12, 'Apr': 15, 'May': 18, 'Jun': 21 });
+          // Try localStorage as fallback
+          const localData = JSON.parse(localStorage.getItem('esgData') || '[]');
+          
+          if (localData.length > 0) {
+            const normalized = normalizeData(localData);
+            setData(normalized);
+            
+            const aggregated = aggregateOverall(normalized);
+            setKpis({
+              overallScore: Math.min(Math.round(aggregated.overall), 100),
+              environmental: Math.min(Math.round(aggregated.environmental), 100),
+              social: Math.min(Math.round(aggregated.social), 100),
+              governance: Math.min(Math.round(aggregated.governance), 100),
+              complianceRate: Math.min(Math.round((normalized.length / 25) * 100), 100)
+            });
+            
+            const categoryCount = { environmental: 0, social: 0, governance: 0 };
+            normalized.forEach(item => {
+              if (categoryCount[item.category] !== undefined) {
+                categoryCount[item.category]++;
+              }
+            });
+            setCategoryData(categoryCount);
+            
+            const riskLevels = {
+              high: categoryCount.environmental < 5 ? 3 : 1,
+              medium: categoryCount.social < 5 ? 2 : 1,
+              low: categoryCount.governance >= 5 ? 4 : 2
+            };
+            setRiskData(riskLevels);
+            
+            const monthlyTrends = { 'Jan': 5, 'Feb': 8, 'Mar': 12, 'Apr': 15, 'May': 18, 'Jun': normalized.length };
+            setMonthlyData(monthlyTrends);
+          } else {
+            // No data available
+            setKpis({ overallScore: 0, environmental: 0, social: 0, governance: 0, complianceRate: 0 });
+            setCategoryData({ environmental: 0, social: 0, governance: 0 });
+            setRiskData({ high: 0, medium: 0, low: 0 });
+            setMonthlyData({});
+          }
         }
         setIsLoading(false);
       } catch (error) {
         console.error('Error loading analytics data:', error);
-        // Set fallback data on error
-        setKpis({
-          overallScore: 75,
-          environmental: 72,
-          social: 78,
-          governance: 75,
-          complianceRate: 94
-        });
-        setCategoryData({ environmental: 8, social: 6, governance: 7 });
-        setRiskData({ high: 2, medium: 3, low: 5 });
-        setMonthlyData({ 'Jan': 5, 'Feb': 8, 'Mar': 12, 'Apr': 15, 'May': 18, 'Jun': 21 });
+        // Try localStorage on error
+        const localData = JSON.parse(localStorage.getItem('esgData') || '[]');
+        if (localData.length > 0) {
+          const normalized = normalizeData(localData);
+          setData(normalized);
+          const aggregated = aggregateOverall(normalized);
+          setKpis({
+            overallScore: Math.min(Math.round(aggregated.overall), 100),
+            environmental: Math.min(Math.round(aggregated.environmental), 100),
+            social: Math.min(Math.round(aggregated.social), 100),
+            governance: Math.min(Math.round(aggregated.governance), 100),
+            complianceRate: Math.min(Math.round((normalized.length / 25) * 100), 100)
+          });
+          const categoryCount = { environmental: 0, social: 0, governance: 0 };
+          normalized.forEach(item => { if (categoryCount[item.category] !== undefined) categoryCount[item.category]++; });
+          setCategoryData(categoryCount);
+          setRiskData({ high: categoryCount.environmental < 5 ? 3 : 1, medium: categoryCount.social < 5 ? 2 : 1, low: categoryCount.governance >= 5 ? 4 : 2 });
+          setMonthlyData({ 'Jan': 5, 'Feb': 8, 'Mar': 12, 'Apr': 15, 'May': 18, 'Jun': normalized.length });
+        } else {
+          setKpis({ overallScore: 0, environmental: 0, social: 0, governance: 0, complianceRate: 0 });
+          setCategoryData({ environmental: 0, social: 0, governance: 0 });
+          setRiskData({ high: 0, medium: 0, low: 0 });
+          setMonthlyData({});
+        }
         setIsLoading(false);
       }
     };
     
     loadData();
-    const interval = setInterval(loadData, 30000); // Reduced frequency to 30 seconds
+    const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -277,7 +382,7 @@ const Analytics = () => {
       },
       {
         label: "ESG Score Trend",
-        data: data.length > 0 ? data.slice(-6).map(trend => trend.overallScore || 0) : [20, 25, 30, 28, 32, kpis.overallScore || 27],
+        data: data.length > 0 ? data.slice(-6).map(trend => trend.overallScore || 0) : [],
         borderColor: isDark ? "#3b82f6" : "#2563eb",
         backgroundColor: isDark ? "rgba(59, 130, 246, 0.1)" : "rgba(37, 99, 235, 0.1)",
         tension: 0.4,
@@ -495,11 +600,11 @@ const Analytics = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard 
             icon="⭐"
-            value={kpis.overallScore || 27}
+            value={kpis.overallScore || 0}
             label="Overall ESG Score"
             trend="↑ +12% vs last month"
             trendColor="success"
-            progress={kpis.overallScore || 27}
+            progress={kpis.overallScore || 0}
           />
           <MetricCard 
             icon="📊"
@@ -511,11 +616,11 @@ const Analytics = () => {
           />
           <MetricCard 
             icon="✓"
-            value={`${kpis.complianceRate || 94}%`}
+            value={`${kpis.complianceRate || 0}%`}
             label="Compliance Rate"
             trend="↑ Meeting targets"
             trendColor="success"
-            progress={kpis.complianceRate || 94}
+            progress={kpis.complianceRate || 0}
           />
           <MetricCard 
             icon="⚠️"

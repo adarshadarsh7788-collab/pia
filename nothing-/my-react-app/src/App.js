@@ -28,7 +28,9 @@ import {
   LazyComprehensiveESGDashboard,
   LazyESGReportingDashboard,
   LazyStakeholderSentimentDashboard,
-  LazyIoTDashboard
+  LazyIoTDashboard,
+  LazyReportsAnalyticsDashboard,
+  LazyEnhancedFrameworkCompliance
 } from './components/LazyComponents';
 
 // Loading component
@@ -74,6 +76,8 @@ const Layout = () => {
             <Route path="/esg-reporting" element={<ProtectedRoute><LazyESGReportingDashboard /></ProtectedRoute>} />
             <Route path="/stakeholder-sentiment" element={<ProtectedRoute><LazyStakeholderSentimentDashboard /></ProtectedRoute>} />
             <Route path="/iot" element={<ProtectedRoute><LazyIoTDashboard /></ProtectedRoute>} />
+            <Route path="/reports-analytics" element={<ProtectedRoute><LazyReportsAnalyticsDashboard /></ProtectedRoute>} />
+            <Route path="/enhanced-framework-compliance" element={<ProtectedRoute><LazyEnhancedFrameworkCompliance /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

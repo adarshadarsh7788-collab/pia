@@ -9,13 +9,14 @@ router.get('/:companyId', async (req, res) => {
   try {
     const { companyId } = req.params;
     
-    // Get data from all models
-    const [wasteData, workforceData, safetyData, ethicsData, airData] = await Promise.all([
+    // Get data from all models including framework compliance
+    const [wasteData, workforceData, safetyData, ethicsData, airData, frameworkData] = await Promise.all([
       models.WasteData?.findAll({ where: { companyId } }) || [],
       models.WorkforceData?.findAll({ where: { companyId } }) || [],
       models.SafetyIncidents?.findAll({ where: { companyId } }) || [],
       models.EthicsCompliance?.findAll({ where: { companyId } }) || [],
-      models.AirQualityData?.findAll({ where: { companyId } }) || []
+      models.AirQualityData?.findAll({ where: { companyId } }) || [],
+      models.FrameworkCompliance?.findAll({ where: { companyId, isActive: true } }) || []
     ]);
 
     // Calculate scores
@@ -23,7 +24,10 @@ router.get('/:companyId', async (req, res) => {
     const social = calculateSocialScore(workforceData, safetyData);
     const governance = calculateGovernanceScore(ethicsData);
     const overall = (environmental + social + governance) / 3;
-    const totalEntries = wasteData.length + workforceData.length + safetyData.length + ethicsData.length + airData.length;
+    const totalEntries = wasteData.length + workforceData.length + safetyData.length + ethicsData.length + airData.length + frameworkData.length;
+    
+    // Calculate framework compliance metrics
+    const frameworkMetrics = calculateFrameworkMetrics(frameworkData);
 
     res.json({
       success: true,
@@ -33,7 +37,8 @@ router.get('/:companyId', async (req, res) => {
         social: Math.round(social),
         governance: Math.round(governance),
         complianceRate: calculateComplianceRate(ethicsData),
-        totalEntries
+        totalEntries,
+        frameworkCompliance: frameworkMetrics
       }
     });
   } catch (error) {
@@ -98,6 +103,47 @@ function calculateComplianceRate(ethicsData) {
   
   const compliant = ethicsData.filter(item => item.complianceStatus === 'compliant').length;
   return Math.round((compliant / ethicsData.length) * 100);
+}
+
+function calculateFrameworkMetrics(frameworkData) {
+  if (!frameworkData.length) {
+    return {
+      totalRequirements: 0,
+      overallComplianceRate: 0,
+      avgDataQuality: 0,
+      avgCompleteness: 0,
+      frameworkBreakdown: {},
+      verificationRate: 0
+    };
+  }
+  
+  const frameworks = ['GRI', 'SASB', 'TCFD', 'BRSR'];
+  const frameworkBreakdown = {};
+  
+  frameworks.forEach(framework => {
+    const frameworkItems = frameworkData.filter(item => item.frameworkType === framework);
+    if (frameworkItems.length > 0) {
+      const compliant = frameworkItems.filter(item => item.complianceStatus === 'COMPLIANT').length;
+      frameworkBreakdown[framework] = {
+        total: frameworkItems.length,
+        compliant,
+        complianceRate: Math.round((compliant / frameworkItems.length) * 100),
+        avgScore: Math.round(frameworkItems.reduce((sum, item) => sum + (item.complianceScore || 0), 0) / frameworkItems.length)
+      };
+    }
+  });
+  
+  const compliantItems = frameworkData.filter(item => item.complianceStatus === 'COMPLIANT').length;
+  const verifiedItems = frameworkData.filter(item => item.verificationStatus === 'VERIFIED').length;
+  
+  return {
+    totalRequirements: frameworkData.length,
+    overallComplianceRate: Math.round((compliantItems / frameworkData.length) * 100),
+    avgDataQuality: Math.round(frameworkData.reduce((sum, item) => sum + (item.dataQualityScore || 0), 0) / frameworkData.length),
+    avgCompleteness: Math.round(frameworkData.reduce((sum, item) => sum + (item.completenessScore || 0), 0) / frameworkData.length),
+    frameworkBreakdown,
+    verificationRate: Math.round((verifiedItems / frameworkData.length) * 100)
+  };
 }
 
 export default router;

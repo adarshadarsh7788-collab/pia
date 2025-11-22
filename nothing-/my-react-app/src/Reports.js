@@ -35,7 +35,7 @@ const COLORS = ["#3a7a44", "#6b7bd6", "#ffbb28", "#ff8042"];
 // --- ESG Data Normalization and Aggregation ---
 function normalizeData(data) {
   return data
-    .map(item => {
+    .map((item, originalIndex) => {
       let year = null;
       
       // Priority order: reportingYear -> timestamp -> current year
@@ -67,7 +67,8 @@ function normalizeData(data) {
                   year,
                   companyName: item.companyName,
                   sector: item.sector,
-                  region: item.region
+                  region: item.region,
+                  _originalIndex: originalIndex
                 });
               }
             });
@@ -82,7 +83,8 @@ function normalizeData(data) {
           ...item,
           year,
           category,
-          value: isNaN(value) ? null : value
+          value: isNaN(value) ? null : value,
+          _originalIndex: originalIndex
         }];
       }
     })
@@ -202,6 +204,8 @@ function Reports() {
         setData([]);
         setYearlyData([]);
         setOverallSummary({});
+        setComplianceSummary({});
+        setFrameworkComplianceData({});
         
         showToast('All data cleared successfully', 'success');
         console.log('Cleared localStorage keys:', keysToRemove);
@@ -856,14 +860,12 @@ function Reports() {
         setYearlyData(aggregateByYear(normalized));
         setOverallSummary(aggregateOverall(normalized));
         
-        // Calculate framework compliance
-        if (normalized.length > 0) {
-          const griCompliance = validateFrameworkCompliance(normalized, 'GRI');
-          const sasbCompliance = validateFrameworkCompliance(normalized, 'SASB');
-          const tcfdCompliance = validateFrameworkCompliance(normalized, 'TCFD');
-          const brsrCompliance = validateFrameworkCompliance(normalized, 'BRSR');
-          setComplianceSummary({ GRI: griCompliance, SASB: sasbCompliance, TCFD: tcfdCompliance, BRSR: brsrCompliance });
-        }
+        // Calculate framework compliance - always calculate, even with empty data
+        const griCompliance = validateFrameworkCompliance(normalized, 'GRI');
+        const sasbCompliance = validateFrameworkCompliance(normalized, 'SASB');
+        const tcfdCompliance = validateFrameworkCompliance(normalized, 'TCFD');
+        const brsrCompliance = validateFrameworkCompliance(normalized, 'BRSR');
+        setComplianceSummary({ GRI: griCompliance, SASB: sasbCompliance, TCFD: tcfdCompliance, BRSR: brsrCompliance });
         
         if (normalized.length > 0) {
           const years = [...new Set(normalized.map(item => item.year))].filter(year => year && !isNaN(year)).sort((a, b) => b - a);
@@ -877,12 +879,16 @@ function Reports() {
       setData([]);
       setYearlyData([]);
       setOverallSummary({});
+      setComplianceSummary({});
+      setFrameworkComplianceData({});
       return;
     } catch (error) {
       console.error('Error loading data:', error);
       setData([]);
       setYearlyData([]);
       setOverallSummary({});
+      setComplianceSummary({});
+      setFrameworkComplianceData({});
     }
   };
 
@@ -1031,57 +1037,35 @@ function Reports() {
     showToast(details, 'info');
   };
 
-  const deleteItem = async (displayIndex) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
+  const deleteItem = (displayIndex) => {
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    
+    try {
       const filteredData = getFilteredAndSortedData();
       const itemToDelete = filteredData[displayIndex];
       
-      try {
-        // Attempt backend delete if id available
-        let backendDeleted = false;
-        if (itemToDelete && itemToDelete.id) {
-          try {
-            const resp = await APIService.request(`/esg/data/${itemToDelete.id}`, { method: 'DELETE' });
-            if (!resp || resp.error) throw new Error(resp?.error || 'Delete failed');
-            backendDeleted = true;
-          } catch (err) {
-            console.warn('Backend delete failed, will fallback to localStorage:', err);
-          }
-        }
-
-        // Remove from localStorage 'esgData' array
-        try {
-          const existing = JSON.parse(localStorage.getItem('esgData') || '[]');
-          const filtered = Array.isArray(existing) ? existing.filter(e => {
-            if (!itemToDelete) return true;
-            if (e.id && itemToDelete.id) return e.id !== itemToDelete.id;
-            // fallback compare by timestamp and company
-            return !(e.timestamp === itemToDelete.timestamp && e.companyName === itemToDelete.companyName && e.category === itemToDelete.category && e.metric === itemToDelete.metric);
-          }) : [];
-          localStorage.setItem('esgData', JSON.stringify(filtered));
-        } catch (err) {
-          console.warn('Failed to update localStorage during delete:', err);
-        }
-
-        // Skip esgDB removal as it's not defined
-
-        // Update UI state by removing the item from `data`
-        try {
-          setData(prev => prev.filter(d => {
-            if (!itemToDelete) return true;
-            if (d.id && itemToDelete.id) return d.id !== itemToDelete.id;
-            return !(d.timestamp === itemToDelete.timestamp && d.companyName === itemToDelete.companyName && d.category === itemToDelete.category && d.metric === itemToDelete.metric);
-          }));
-        } catch (err) {
-          console.warn('Failed to update state data after delete:', err);
-        }
-
-        setSelectedItems([]);
-        showToast('Item deleted successfully', 'success');
-      } catch (error) {
-        console.error('Failed to delete item:', error);
-        showToast('Failed to delete item', 'error');
+      if (!itemToDelete || itemToDelete._originalIndex === undefined) {
+        showToast('Item not found', 'error');
+        return;
       }
+      
+      // Use the stored original index to remove from data array
+      const newData = [...data];
+      newData.splice(itemToDelete._originalIndex, 1);
+      
+      // Update state
+      setData(newData);
+      
+      // Update localStorage
+      localStorage.setItem('esgData', JSON.stringify(newData));
+      
+      // Clear selections
+      setSelectedItems([]);
+      
+      showToast('Item deleted successfully', 'success');
+    } catch (error) {
+      console.error('Delete error:', error);
+      showToast('Failed to delete item', 'error');
     }
   };
 
@@ -1090,10 +1074,28 @@ function Reports() {
     
 
     
+    // Add storage event listener for real-time updates
+    const handleStorageChange = (e) => {
+      if (e.key === 'esgData' || e.key === null) {
+        setTimeout(refreshData, 100); // Small delay to ensure data is written
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events from data entry
+    const handleDataUpdate = () => {
+      setTimeout(refreshData, 100);
+    };
+    window.addEventListener('esgDataUpdated', handleDataUpdate);
+    
     // Reduce API calls - update every 30 seconds instead of 5
     const interval = setInterval(refreshData, 30000);
     
-    const cleanup = () => clearInterval(interval);
+    const cleanup = () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('esgDataUpdated', handleDataUpdate);
+    };
     
     // Add print styles
     const printStyles = `
@@ -1563,8 +1565,7 @@ function Reports() {
       <div className="max-w-7xl mx-auto p-6">
 
 
-        {/* Framework Compliance Summary */}
-        <FrameworkComplianceSummary complianceData={complianceSummary} />
+
 
         {/* Data Status Indicator */}
         <div className={`mb-6 p-4 rounded-lg ${theme.bg.subtle} border-l-4 border-blue-500`}>
@@ -1663,35 +1664,35 @@ function Reports() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <MetricCard 
                 icon="🌍"
-                value={overallSummary.environmental}
+                value={Math.min(100, parseFloat(overallSummary.environmental) || 0)}
                 label="Environmental Score"
                 trend="↑ +2.3%"
                 trendColor="success"
-                progress={parseFloat(overallSummary.environmental) || 0}
+                progress={Math.min(100, parseFloat(overallSummary.environmental) || 0)}
               />
               <MetricCard 
                 icon="👥"
-                value={overallSummary.social}
+                value={Math.min(100, parseFloat(overallSummary.social) || 0)}
                 label="Social Score"
                 trend="↑ +1.8%"
                 trendColor="success"
-                progress={parseFloat(overallSummary.social) || 0}
+                progress={Math.min(100, parseFloat(overallSummary.social) || 0)}
               />
               <MetricCard 
                 icon="⚖️"
-                value={overallSummary.governance}
+                value={Math.min(100, parseFloat(overallSummary.governance) || 0)}
                 label="Governance Score"
                 trend="→ 0.0%"
                 trendColor="neutral"
-                progress={parseFloat(overallSummary.governance) || 0}
+                progress={Math.min(100, parseFloat(overallSummary.governance) || 0)}
               />
               <MetricCard 
                 icon="⭐"
-                value={overallSummary.overall}
+                value={Math.min(100, parseFloat(overallSummary.overall) || 0)}
                 label="Overall ESG Score"
                 trend="↑ +1.4%"
                 trendColor="success"
-                progress={parseFloat(overallSummary.overall) || 0}
+                progress={Math.min(100, parseFloat(overallSummary.overall) || 0)}
               />
             </div>
           ) : (
@@ -2144,6 +2145,9 @@ function Reports() {
         <hr className="my-4" />
       </div>
 
+        {/* Framework Compliance Summary */}
+        <FrameworkComplianceSummary complianceData={complianceSummary} />
+
         {/* Enhanced History Section */}
         <div className={`p-6 rounded-xl shadow-lg mt-8 ${theme.bg.card}`}>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -2342,10 +2346,7 @@ function Reports() {
                             <span className="text-blue-600">👁️</span>
                           </button>
                           <button
-                            onClick={() => {
-                              deleteItem(idx);
-                              showToast('Item deleted successfully', 'success');
-                            }}
+                            onClick={() => deleteItem(idx)}
                             className={`p-2 rounded-lg transition-colors duration-200 ${theme.hover.subtle}`}
                             title="Delete"
                           >

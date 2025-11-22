@@ -4,6 +4,7 @@ import companyLogo from "./companyLogo.jpg";
 import { getStoredData, initializeStorage } from "./utils/storage";
 import APIService from "./services/apiService";
 import ModuleAPI from "./services/moduleAPI";
+import ReportsAPI from "./services/reportsAPI";
 import { useTheme } from "./contexts/ThemeContext";
 import { getThemeClasses } from "./utils/themeUtils";
 import { MetricCard, StatusCard } from "./components/ProfessionalCard";
@@ -150,65 +151,92 @@ function Dashboard() {
   const { isDark, toggleTheme } = useTheme();
   const theme = getThemeClasses(isDark);
   const [kpis, setKpis] = useState({
-    overallScore: 27,
-    complianceRate: 94,
-    environmental: 35,
+    overallScore: 0,
+    complianceRate: 0,
+    environmental: 0,
     social: 0,
     governance: 0,
     totalEntries: 0,
   });
-  const [alerts, setAlerts] = useState([
-    { id: 1, type: 'high', message: 'Carbon emissions target review due', category: 'Environmental' },
-    { id: 2, type: 'medium', message: 'Quarterly sustainability report pending', category: 'Reporting' },
-    { id: 3, type: 'low', message: 'New ESG regulation update available', category: 'Compliance' }
-  ]);
+  const [alerts, setAlerts] = useState([]);
   const [showPrimaryActions, setShowPrimaryActions] = useState(false);
   const [showManagementActions, setShowManagementActions] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
+  const [reportsData, setReportsData] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const updateData = async () => {
       const currentUser = localStorage.getItem('currentUser');
-      const companyId = currentUser || '1'; // Default company ID
+      const companyId = currentUser || '1';
+      setLoading(true);
       
       try {
-        // Get real-time KPIs from database
-        const kpiResponse = await ModuleAPI.calculateKPIs(companyId);
+        // Fetch KPIs, Reports, and Analytics data in parallel
+        const [kpiResponse, dashboardSummary] = await Promise.all([
+          ModuleAPI.calculateKPIs(companyId).catch(() => ({ success: false })),
+          ReportsAPI.fetchDashboardSummary().catch(() => ({ success: false }))
+        ]);
         
+        // Update KPIs with capping at 100
         if (kpiResponse.success) {
           setKpis({
-            overallScore: kpiResponse.data.overall || 0,
-            complianceRate: kpiResponse.data.complianceRate || 0,
-            environmental: kpiResponse.data.environmental || 0,
-            social: kpiResponse.data.social || 0,
-            governance: kpiResponse.data.governance || 0,
+            overallScore: Math.min(kpiResponse.data.overall || 0, 100),
+            complianceRate: Math.min(kpiResponse.data.complianceRate || 0, 100),
+            environmental: Math.min(kpiResponse.data.environmental || 0, 100),
+            social: Math.min(kpiResponse.data.social || 0, 100),
+            governance: Math.min(kpiResponse.data.governance || 0, 100),
             totalEntries: kpiResponse.data.totalEntries || 0
           });
-          return;
         }
+        
+        // Update Reports and Analytics Data
+        if (dashboardSummary.success) {
+          setReportsData(dashboardSummary.data.comprehensive);
+          setAnalyticsData(dashboardSummary.data.performance);
+        }
+        
       } catch (error) {
-        console.warn('KPI calculation failed:', error);
+        console.warn('Data fetch failed:', error);
+      } finally {
+        setLoading(false);
       }
-      
-      // Fallback to default KPIs
-      setKpis({
-        overallScore: 0,
-        complianceRate: 0,
-        environmental: 0,
-        social: 0,
-        governance: 0,
-        totalEntries: 0
-      });
+    };
+    
+    const loadAlerts = () => {
+      const storedAlerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+      const now = new Date();
+      const recentAlerts = storedAlerts
+        .filter(alert => {
+          const alertTime = new Date(alert.timestamp);
+          return (now - alertTime) < 24 * 60 * 60 * 1000;
+        })
+        .slice(0, 3)
+        .map(alert => ({
+          id: alert.id,
+          type: alert.type === 'warning' ? 'high' : alert.type === 'info' ? 'medium' : 'low',
+          message: alert.title,
+          category: alert.category
+        }));
+      setAlerts(recentAlerts);
     };
     
     updateData();
+    loadAlerts();
     
     // Listen for storage changes to update in real-time
-    const handleStorageChange = () => updateData();
+    const handleStorageChange = () => {
+      updateData();
+      loadAlerts();
+    };
     window.addEventListener('storage', handleStorageChange);
     
-    // Also check for updates periodically
-    const interval = setInterval(updateData, 1000);
+    // Check for updates periodically
+    const interval = setInterval(() => {
+      updateData();
+      loadAlerts();
+    }, 5000);
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);
@@ -274,6 +302,8 @@ function Dashboard() {
             progress={Math.min((kpis.totalEntries / 50) * 100, 100)}
           />
         </div>
+
+
 
         {/* Enhanced Bottom Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -411,19 +441,27 @@ function Dashboard() {
                 <span className={`ml-auto text-xs px-2 py-1 rounded-full font-medium ${isDark ? 'bg-red-900 text-red-300' : 'bg-red-100 text-red-600'}`}>{alerts.length}</span>
               </div>
               <div className={`space-y-3 text-sm transition-colors duration-300 ${theme.text.secondary}`}>
-                {alerts.map((alert) => (
-                  <div key={alert.id} className={`flex items-center gap-3 p-2 rounded-lg transition-colors duration-200 cursor-pointer ${theme.hover.subtle}`}>
-                    <div className={`w-2 h-2 rounded-full animate-pulse ${
-                      alert.type === 'high' ? 'bg-red-400' : 
-                      alert.type === 'medium' ? 'bg-yellow-400' : 'bg-blue-400'
-                    }`}></div>
-                    <span className="flex-1">{alert.message}</span>
-                    <span className={`text-xs font-medium ${
-                      alert.type === 'high' ? 'text-red-500' : 
-                      alert.type === 'medium' ? 'text-yellow-600' : 'text-blue-600'
-                    }`}>{alert.type.toUpperCase()}</span>
+                {alerts.length === 0 ? (
+                  <div className={`text-center py-4 ${theme.text.secondary}`}>
+                    <span className="text-2xl mb-2 block">📭</span>
+                    <p>No recent alerts</p>
+                    <p className="text-xs mt-1">All systems running smoothly!</p>
                   </div>
-                ))}
+                ) : (
+                  alerts.map((alert) => (
+                    <div key={alert.id} className={`flex items-center gap-3 p-2 rounded-lg transition-colors duration-200 cursor-pointer ${theme.hover.subtle}`}>
+                      <div className={`w-2 h-2 rounded-full animate-pulse ${
+                        alert.type === 'high' ? 'bg-red-400' : 
+                        alert.type === 'medium' ? 'bg-yellow-400' : 'bg-blue-400'
+                      }`}></div>
+                      <span className="flex-1">{alert.message}</span>
+                      <span className={`text-xs font-medium ${
+                        alert.type === 'high' ? 'text-red-500' : 
+                        alert.type === 'medium' ? 'text-yellow-600' : 'text-blue-600'
+                      }`}>{alert.type.toUpperCase()}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

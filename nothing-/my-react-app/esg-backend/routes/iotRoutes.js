@@ -186,6 +186,39 @@ router.get('/devices/status', async (req, res) => {
 });
 
 /**
+ * Update device status
+ */
+router.put('/devices/:deviceId/status', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const { status } = req.body;
+    
+    const device = await models.IoTDevice.findOne({ where: { deviceId } });
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        error: 'Device not found'
+      });
+    }
+    
+    device.status = status;
+    await device.save();
+    
+    res.json({
+      success: true,
+      message: 'Device status updated successfully',
+      device
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Delete IoT device
  */
 router.delete('/devices/:deviceId', async (req, res) => {

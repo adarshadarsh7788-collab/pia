@@ -72,6 +72,18 @@ function DataEntry() {
   });
 
   const [dragOver, setDragOver] = useState(false);
+  const [isEditingCompany, setIsEditingCompany] = useState(false);
+
+  // Load saved company name on mount
+  useState(() => {
+    const savedCompany = localStorage.getItem('esg_company_name');
+    if (savedCompany && !formData.companyInfo.companyName) {
+      setFormData(prev => ({
+        ...prev,
+        companyInfo: { ...prev.companyInfo, companyName: savedCompany }
+      }));
+    }
+  }, []);
 
   // Disabled auto-save to prevent API calls
   const debouncedSave = debounce(async (data) => {
@@ -195,6 +207,9 @@ function DataEntry() {
         existing.push(submissionData);
         localStorage.setItem('esgData', JSON.stringify(existing));
         localStorage.setItem('esg_last_submission', JSON.stringify(submissionData));
+        
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent('esgDataUpdated', { detail: submissionData }));
       } catch (e) {
         console.error('Failed to save data:', e);
         throw new Error('Failed to save data');
@@ -399,31 +414,18 @@ function DataEntry() {
       sheets: [{
         name: 'ESG_Data_Template',
         data: [
-          ['CompanyName', 'Category', 'Metric', 'Value', 'Unit', 'FrameworkCode', 'ReportingYear', 'Description', 'Sector', 'Region', 'DataSource', 'Verified', 'Notes'],
-          ['ESGenius Tech Solutions', 'environmental', 'scope1Emissions', '1250', 'tCO2e', 'GRI-305-1', '2024', 'Direct GHG emissions', 'technology', 'asia_pacific', 'Internal Systems', 'true', 'Verified by external auditor'],
-          ['ESGenius Tech Solutions', 'social', 'totalEmployees', '2500', 'count', 'GRI-2-7', '2024', 'Total workforce', 'technology', 'asia_pacific', 'HR Systems', 'true', 'End of year headcount'],
-          ['ESGenius Tech Solutions', 'governance', 'boardSize', '9', 'count', 'GRI-2-9', '2024', 'Board members', 'technology', 'asia_pacific', 'Corporate Records', 'true', 'As per board resolution']
+          ['CompanyName', 'Category', 'Metric', 'Value', 'Unit', 'FrameworkCode', 'ReportingYear', 'Description', 'Sector', 'Region', 'DataSource', 'Verified', 'Notes']
         ]
       }]
     };
   };
 
   const generateSampleData = () => {
-    const sampleMetrics = [
-      ['ESGenius Tech Solutions', 'environmental', 'scope1Emissions', '1250', 'tCO2e', 'GRI-305-1', '2024', 'technology', 'asia_pacific', 'Internal Systems', 'true'],
-      ['ESGenius Tech Solutions', 'environmental', 'scope2Emissions', '2800', 'tCO2e', 'GRI-305-2', '2024', 'technology', 'asia_pacific', 'Utility Bills', 'true'],
-      ['ESGenius Tech Solutions', 'environmental', 'energyConsumption', '15000', 'MWh', 'GRI-302-1', '2024', 'technology', 'asia_pacific', 'Energy Management System', 'true'],
-      ['ESGenius Tech Solutions', 'social', 'totalEmployees', '2500', 'count', 'GRI-2-7', '2024', 'technology', 'asia_pacific', 'HR Systems', 'true'],
-      ['ESGenius Tech Solutions', 'social', 'femaleEmployeesPercentage', '42', '%', 'GRI-405-1', '2024', 'technology', 'asia_pacific', 'HR Analytics', 'true'],
-      ['ESGenius Tech Solutions', 'governance', 'boardSize', '9', 'count', 'GRI-2-9', '2024', 'technology', 'asia_pacific', 'Corporate Records', 'true']
-    ];
-    
     return {
       sheets: [{
         name: 'Sample_ESG_Data',
         data: [
-          ['CompanyName', 'Category', 'Metric', 'Value', 'Unit', 'FrameworkCode', 'ReportingYear', 'Sector', 'Region', 'DataSource', 'Verified'],
-          ...sampleMetrics
+          ['CompanyName', 'Category', 'Metric', 'Value', 'Unit', 'FrameworkCode', 'ReportingYear', 'Sector', 'Region', 'DataSource', 'Verified']
         ]
       }]
     };
@@ -501,56 +503,6 @@ function DataEntry() {
         ]}
         actions={[
           {
-            label: 'Quick Fill Sample',
-            onClick: () => {
-              setFormData({
-                companyInfo: {
-                  companyName: "ESGenius Tech Solutions",
-                  reportingYear: 2024,
-                  sector: "technology",
-                  region: "asia_pacific",
-                  reportingFramework: "GRI",
-                  assuranceLevel: "Limited"
-                },
-                environmental: {
-                  scope1Emissions: "1250",
-                  scope2Emissions: "2800",
-                  scope3Emissions: "5200",
-                  energyConsumption: "15000",
-                  renewableEnergyPercentage: "68",
-                  waterWithdrawal: "8500",
-                  wasteGenerated: "850"
-                },
-                social: {
-                  totalEmployees: "2500",
-                  femaleEmployeesPercentage: "42",
-                  lostTimeInjuryRate: "0.8",
-                  trainingHoursPerEmployee: "32",
-                  communityInvestment: "250000",
-                  employeeTurnoverRate: "12",
-                  safetyTrainingHours: "40",
-                  diversityTrainingCompletion: "95"
-                },
-                governance: {
-                  boardSize: "9",
-                  independentDirectorsPercentage: "75",
-                  femaleDirectorsPercentage: "40",
-                  ethicsTrainingCompletion: "98",
-                  corruptionIncidents: "0",
-                  dataBreachIncidents: "0",
-                  cybersecurityInvestment: "500000",
-                  supplierESGAssessments: "85",
-                  antiCorruptionPolicies: "implemented",
-                  dataPrivacyPolicies: "comprehensive"
-                }
-              });
-              setCompletedSteps(new Set([1, 2, 3, 4]));
-              showToast('Sample data loaded successfully!', 'success');
-            },
-            variant: 'outline',
-            icon: '📝'
-          },
-          {
             label: 'Enhanced Forms',
             onClick: () => setShowEnhancedEntry(true),
             variant: 'primary',
@@ -615,20 +567,60 @@ function DataEntry() {
             <h3 className={`text-lg font-bold ${theme.text.primary} mb-4`}>Company Information & Framework Selection</h3>
             <Alert 
               type="info"
-              title="Framework Compliance"
-              message="Select your reporting framework to ensure data alignment with global standards (GRI, SASB, TCFD, CSRD)."
+              title="Flexible Company Management"
+              message="You can edit company information at any time and manage data for multiple companies."
               className="mb-4"
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Company Name}'}</label>
-                <input
-                  type="text"
-                  value={formData.companyInfo.companyName}
-                  onChange={(e) => handleChange('companyInfo', 'companyName', e.target.value)}
-                  className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                  required
-                />
+              <div className="md:col-span-2">
+                <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Company Name *</label>
+                <div className="flex gap-2">
+                  {!isEditingCompany && formData.companyInfo.companyName ? (
+                    <>
+                      <div className={`flex-1 border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary} bg-gray-50 flex items-center justify-between`}>
+                        <span className="font-medium">{formData.companyInfo.companyName}</span>
+                        <span className="text-xs text-gray-500 ml-2">(Auto-filled)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingCompany(true)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm flex items-center gap-1"
+                        title="Edit company name"
+                      >
+                        ✏️ Edit
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={formData.companyInfo.companyName}
+                        onChange={(e) => {
+                          handleChange('companyInfo', 'companyName', e.target.value);
+                        }}
+                        className={`flex-1 border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                        placeholder="Enter company name (e.g., Acme Corporation)"
+                        required
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (formData.companyInfo.companyName.trim()) {
+                            localStorage.setItem('esg_company_name', formData.companyInfo.companyName);
+                            setIsEditingCompany(false);
+                            showToast('Company name saved', 'success');
+                          }
+                        }}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
+                        disabled={!formData.companyInfo.companyName.trim()}
+                      >
+                        ✓ Save
+                      </button>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Company name is auto-filled for all entries. Click Edit to change.</p>
               </div>
               <div>
                 <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Reporting Year}'}</label>
@@ -1044,7 +1036,16 @@ function DataEntry() {
               
               {/* Company Information Summary */}
               <div className={`p-6 rounded-lg ${theme.bg.subtle} mb-6`}>
-                <h3 className={`text-lg font-bold ${theme.text.primary} mb-4`}>🏢 Company Information</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={`text-lg font-bold ${theme.text.primary}`}>🏢 Company Information</h3>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  >
+                    ✏️ Edit Company Info
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <span className={`text-sm ${theme.text.secondary}`}>Company:</span>

@@ -5,6 +5,7 @@ import esgRoutes from './routes/esgRoutes.js';
 import kpiRoutes from './routes/kpiRoutes.js';
 import reportingRoutes from './routes/reportingRoutes.js';
 import iotRoutes from './routes/iotRoutes.js';
+import frameworkComplianceRoutes from './routes/frameworkComplianceRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,6 +19,7 @@ app.use('/api/esg', esgRoutes);
 app.use('/api/kpi', kpiRoutes);
 app.use('/api/reports', reportingRoutes);
 app.use('/api/iot', iotRoutes);
+app.use('/api/framework-compliance', frameworkComplianceRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

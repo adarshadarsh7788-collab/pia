@@ -101,7 +101,7 @@ class ModuleAPI {
   static calculateEnvironmentalScore(wasteData) {
     if (!wasteData.length) return 0;
     const avgRecyclingRate = wasteData.reduce((sum, item) => sum + (item.recyclingRate || 0), 0) / wasteData.length;
-    return Math.min(avgRecyclingRate * 1.2, 100);
+    return Math.min(avgRecyclingRate, 100);
   }
 
   static calculateSocialScore(workforceData, safetyData) {
