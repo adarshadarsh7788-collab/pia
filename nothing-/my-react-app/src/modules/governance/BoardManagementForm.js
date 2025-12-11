@@ -8,42 +8,53 @@ const BoardManagementForm = ({ onSave, onClose }) => {
   const theme = getThemeClasses(isDark);
   
   const [formData, setFormData] = useState({
-    // Board Composition
+    // Mining Board Composition (GRI-2-9, IFRS-S1)
     total_board_members: '',
     independent_directors: '',
     executive_directors: '',
     non_executive_directors: '',
     
-    // Diversity Metrics
+    // Diversity Metrics (GRI-405-1)
     female_directors: '',
     male_directors: '',
-    minority_directors: '',
+    local_directors: '',
     
-    // Age & Tenure
-    directors_under_50: '',
-    directors_50_65: '',
-    directors_over_65: '',
-    average_tenure: '',
+    // Mining-Specific Expertise
+    mining_industry_expertise: '',
+    environmental_expertise: '',
+    safety_expertise: '',
+    community_relations_expertise: '',
+    geology_expertise: '',
     
-    // Expertise & Skills
-    financial_expertise: '',
-    industry_expertise: '',
-    technology_expertise: '',
-    esg_expertise: '',
+    // Mining Governance Committees
+    safety_committee_exists: false,
+    environmental_committee_exists: false,
+    community_relations_committee_exists: false,
+    sustainability_committee_exists: false,
+    
+    // Climate & Sustainability Governance (IFRS-S1, IFRS-S2)
+    climate_risk_disclosure_score: '',
+    sustainability_governance_score: '',
+    esg_reporting_frequency: '',
+    climate_targets_set: false,
     
     // Board Activities
     board_meetings_held: '',
+    safety_committee_meetings: '',
+    environmental_committee_meetings: '',
     average_attendance: '',
-    committees_count: '',
     
-    // Compensation
-    board_compensation_total: '',
-    ceo_compensation: '',
+    // Mining-Specific Policies
+    tailings_management_policy: false,
+    mine_closure_plan: false,
+    community_engagement_policy: false,
+    artisanal_mining_policy: false,
     
     // Additional Information
     board_evaluation_conducted: false,
     succession_planning: false,
     reporting_period: new Date().getFullYear(),
+    mine_site_name: '',
     governance_framework: ''
   });
 
@@ -128,8 +139,8 @@ const BoardManagementForm = ({ onSave, onClose }) => {
     <div className={`max-w-4xl mx-auto p-6 ${theme.bg.card} rounded-xl shadow-lg`}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className={`text-2xl font-bold ${theme.text.primary}`}>⚖️ Board Management</h2>
-          <p className={`text-sm ${theme.text.secondary}`}>Track board composition, diversity, and governance</p>
+          <h2 className={`text-2xl font-bold ${theme.text.primary}`}>⛏️⚖️ Mining Governance & Board</h2>
+          <p className={`text-sm ${theme.text.secondary}`}>Track mining board composition and climate governance - IFRS S1 & S2</p>
         </div>
         <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
       </div>
@@ -208,43 +219,125 @@ const BoardManagementForm = ({ onSave, onClose }) => {
           </div>
         </div>
 
-        {/* Board Expertise */}
+        {/* Mining-Specific Board Expertise */}
         <div className={`p-4 rounded-lg border-l-4 border-green-500 ${theme.bg.subtle}`}>
-          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Board Expertise (Number of Directors)</h3>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining-Specific Board Expertise (Number of Directors)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="number"
-              placeholder="Financial Expertise"
-              value={formData.financial_expertise}
-              onChange={(e) => handleInputChange('financial_expertise', e.target.value)}
+              placeholder="Mining Industry Expertise"
+              value={formData.mining_industry_expertise}
+              onChange={(e) => handleInputChange('mining_industry_expertise', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
             <input
               type="number"
-              placeholder="Industry Expertise"
-              value={formData.industry_expertise}
-              onChange={(e) => handleInputChange('industry_expertise', e.target.value)}
+              placeholder="Environmental Expertise"
+              value={formData.environmental_expertise}
+              onChange={(e) => handleInputChange('environmental_expertise', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
             <input
               type="number"
-              placeholder="Technology Expertise"
-              value={formData.technology_expertise}
-              onChange={(e) => handleInputChange('technology_expertise', e.target.value)}
+              placeholder="Safety Expertise"
+              value={formData.safety_expertise}
+              onChange={(e) => handleInputChange('safety_expertise', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
             <input
               type="number"
-              placeholder="ESG Expertise"
-              value={formData.esg_expertise}
-              onChange={(e) => handleInputChange('esg_expertise', e.target.value)}
+              placeholder="Community Relations Expertise"
+              value={formData.community_relations_expertise}
+              onChange={(e) => handleInputChange('community_relations_expertise', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Geology/Technical Expertise"
+              value={formData.geology_expertise}
+              onChange={(e) => handleInputChange('geology_expertise', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
           </div>
-          <div className="mt-3 text-right">
-            <span className={`font-bold ${theme.text.primary}`}>
-              Expertise Coverage: {calculations.expertise_coverage.toFixed(0)}%
-            </span>
+        </div>
+
+        {/* Mining Governance Committees */}
+        <div className={`p-4 rounded-lg border-l-4 border-yellow-500 ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining Governance Committees</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.safety_committee_exists}
+                onChange={(e) => handleInputChange('safety_committee_exists', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Safety Committee</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.environmental_committee_exists}
+                onChange={(e) => handleInputChange('environmental_committee_exists', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Environmental Committee</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.community_relations_committee_exists}
+                onChange={(e) => handleInputChange('community_relations_committee_exists', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Community Relations Committee</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.sustainability_committee_exists}
+                onChange={(e) => handleInputChange('sustainability_committee_exists', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Sustainability Committee</label>
+            </div>
+          </div>
+        </div>
+
+        {/* Climate & Sustainability Governance - IFRS S1 & S2 */}
+        <div className={`p-4 rounded-lg border-l-4 border-indigo-500 ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Climate & Sustainability Governance - IFRS S1 & S2</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="number"
+              placeholder="Climate Risk Disclosure Score (0-100)"
+              value={formData.climate_risk_disclosure_score}
+              onChange={(e) => handleInputChange('climate_risk_disclosure_score', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Sustainability Governance Score (0-100)"
+              value={formData.sustainability_governance_score}
+              onChange={(e) => handleInputChange('sustainability_governance_score', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="text"
+              placeholder="ESG Reporting Frequency"
+              value={formData.esg_reporting_frequency}
+              onChange={(e) => handleInputChange('esg_reporting_frequency', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.climate_targets_set}
+                onChange={(e) => handleInputChange('climate_targets_set', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Climate Targets Set</label>
+            </div>
           </div>
         </div>
 
@@ -276,10 +369,60 @@ const BoardManagementForm = ({ onSave, onClose }) => {
           </div>
         </div>
 
-        {/* Governance Practices */}
-        <div className={`p-4 rounded-lg ${theme.bg.subtle}`}>
-          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Governance Practices</h3>
+        {/* Mining-Specific Policies */}
+        <div className={`p-4 rounded-lg border-l-4 border-red-500 ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining-Specific Policies</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.tailings_management_policy}
+                onChange={(e) => handleInputChange('tailings_management_policy', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Tailings Management Policy</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.mine_closure_plan}
+                onChange={(e) => handleInputChange('mine_closure_plan', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Mine Closure Plan</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.community_engagement_policy}
+                onChange={(e) => handleInputChange('community_engagement_policy', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Community Engagement Policy</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.artisanal_mining_policy}
+                onChange={(e) => handleInputChange('artisanal_mining_policy', e.target.checked)}
+                className="rounded"
+              />
+              <label className={theme.text.primary}>Artisanal Mining Policy</label>
+            </div>
+          </div>
+        </div>
+
+        {/* Mine Site Information */}
+        <div className={`p-4 rounded-lg ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mine Site Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="text"
+              placeholder="Mine Site Name"
+              value={formData.mine_site_name}
+              onChange={(e) => handleInputChange('mine_site_name', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -288,15 +431,6 @@ const BoardManagementForm = ({ onSave, onClose }) => {
                 className="rounded"
               />
               <label className={theme.text.primary}>Board Evaluation Conducted</label>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.succession_planning}
-                onChange={(e) => handleInputChange('succession_planning', e.target.checked)}
-                className="rounded"
-              />
-              <label className={theme.text.primary}>Succession Planning in Place</label>
             </div>
           </div>
           <textarea

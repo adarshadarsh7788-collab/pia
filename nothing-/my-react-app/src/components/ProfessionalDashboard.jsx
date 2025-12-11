@@ -6,7 +6,6 @@ import { getThemeClasses } from '../utils/themeUtils';
 const ProfessionalDashboard = ({ data, selectedFramework }) => {
   const { isDark } = useTheme();
   const theme = getThemeClasses(isDark);
-
   // Professional color palette
   const colors = {
     primary: '#0066CC',

@@ -1,5 +1,21 @@
 // ESG Reporting Frameworks and Standards
 export const ESG_FRAMEWORKS = {
+  ISSB: {
+    name: 'ISSB (IFRS S1 & S2)',
+    description: 'International Sustainability Standards Board - Climate & Sustainability Disclosures',
+    standards: ['IFRS-S1', 'IFRS-S2'],
+    focus: ['Climate Risk', 'Financial Materiality', 'Enterprise Value'],
+    region: 'Global',
+    mandatory: false
+  },
+  GRI_MINING: {
+    name: 'GRI Mining & Metals',
+    description: 'GRI Standards for Mining & Metals Sector',
+    standards: ['GRI-11', 'GRI-305', 'GRI-303', 'GRI-304', 'GRI-403', 'GRI-413'],
+    focus: ['Tailings Management', 'Water Stewardship', 'Biodiversity', 'Community Relations'],
+    region: 'Global',
+    mandatory: false
+  },
   GRI: {
     name: "GRI Standards",
     description: "Global Reporting Initiative Standards",

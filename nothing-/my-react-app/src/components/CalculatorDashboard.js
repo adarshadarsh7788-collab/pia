@@ -183,39 +183,87 @@ const CalculatorDashboard = () => {
     if (!result) return null;
 
     return (
-      <div className={`mt-4 p-4 rounded-lg ${theme.bg.subtle}`}>
-        <h4 className={`font-semibold mb-2 ${theme.text.primary}`}>Results:</h4>
+      <div className={`mt-4 p-4 rounded-lg ${theme.bg.subtle} w-full text-left`}>
+        <h4 className={`font-semibold mb-3 ${theme.text.primary} text-center`}>Results</h4>
         <div className="space-y-2 text-sm">
           {type === 'carbon' && (
             <>
-              <div>Total Emissions: {result.totalEmissions?.toFixed(2)} kg CO2e</div>
-              <div>Scope 1: {result.scope1?.total?.toFixed(2)} kg CO2e</div>
-              <div>Scope 2: {result.scope2?.total?.toFixed(2)} kg CO2e</div>
-              <div>Scope 3: {result.scope3?.total?.toFixed(2)} kg CO2e</div>
+              <div className="flex justify-between py-1">
+                <span className="font-medium">Total:</span>
+                <span className="font-bold">{result.totalEmissions?.toFixed(2)} kg CO2e</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Scope 1:</span>
+                <span>{result.scope1?.total?.toFixed(2)} kg CO2e</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Scope 2:</span>
+                <span>{result.scope2?.total?.toFixed(2)} kg CO2e</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Scope 3:</span>
+                <span>{result.scope3?.total?.toFixed(2)} kg CO2e</span>
+              </div>
             </>
           )}
           {type === 'water' && (
             <>
-              <div>Stress Score: {result.overallStressScore}/100</div>
-              <div>Stress Level: {result.stressLevel?.description}</div>
-              <div>Availability Score: {result.availability?.score}/100</div>
-              <div>Quality Score: {result.quality?.overallScore}/100</div>
+              <div className="flex justify-between py-1">
+                <span className="font-medium">Stress Score:</span>
+                <span className="font-bold">{result.overallStressScore}/100</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Level:</span>
+                <span>{result.stressLevel?.description}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Availability:</span>
+                <span>{result.availability?.score}/100</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Quality:</span>
+                <span>{result.quality?.overallScore}/100</span>
+              </div>
             </>
           )}
           {type === 'roi' && (
             <>
-              <div>Total ROI: {result.totalROI}%</div>
-              <div>Payback Period: {result.paybackPeriod} years</div>
-              <div>NPV: ${result.netPresentValue?.toLocaleString()}</div>
-              <div>Total Investment: ${result.investments?.totalInvestment?.toLocaleString()}</div>
+              <div className="flex justify-between py-1">
+                <span className="font-medium">Total ROI:</span>
+                <span className="font-bold">{result.totalROI}%</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Payback:</span>
+                <span>{result.paybackPeriod} years</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>NPV:</span>
+                <span>${result.netPresentValue?.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Investment:</span>
+                <span>${result.investments?.totalInvestment?.toLocaleString()}</span>
+              </div>
             </>
           )}
           {type === 'intensity' && (
             <>
-              <div>Total Emissions: {result.totalEmissions} kg CO2e</div>
-              <div>Revenue Intensity: {result.intensityMetrics?.revenue?.value?.toFixed(4)} kg CO2e/$</div>
-              <div>Employee Intensity: {result.intensityMetrics?.employee?.value?.toFixed(0)} kg CO2e/employee</div>
-              <div>Overall Performance: {result.benchmarks?.overallPerformance}</div>
+              <div className="flex justify-between py-1">
+                <span className="font-medium">Total:</span>
+                <span className="font-bold">{result.totalEmissions} kg CO2e</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Revenue:</span>
+                <span>{result.intensityMetrics?.revenue?.value?.toFixed(4)} kg/$</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Employee:</span>
+                <span>{result.intensityMetrics?.employee?.value?.toFixed(0)} kg/emp</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span>Performance:</span>
+                <span>{result.benchmarks?.overallPerformance}</span>
+              </div>
             </>
           )}
         </div>
@@ -224,21 +272,21 @@ const CalculatorDashboard = () => {
   };
 
   return (
-    <div className={`min-h-screen p-6 ${theme.bg.gradient}`}>
+    <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className={`text-3xl font-bold ${theme.text.primary}`}>
+        <div className={`mb-6 p-6 rounded-xl shadow-lg ${theme.bg.card}`}>
+          <h1 className={`text-2xl font-bold ${theme.text.primary}`}>
             ESG Calculator Dashboard
           </h1>
-          <p className={`text-lg ${theme.text.secondary}`}>
+          <p className={`text-sm ${theme.text.secondary} mt-1`}>
             Test and validate specialized ESG calculators
           </p>
           
           {/* Data Source Toggle */}
-          <div className={`mt-4 p-4 rounded-lg ${theme.bg.card}`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <label className={`flex items-center cursor-pointer ${theme.text.primary}`}>
+          <div className={`mt-4 p-4 rounded-lg ${theme.bg.subtle}`}>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex-1">
+                <label className={`flex items-center cursor-pointer ${theme.text.primary} font-medium`}>
                   <input
                     type="checkbox"
                     checked={useRealData}
@@ -246,45 +294,45 @@ const CalculatorDashboard = () => {
                       setUseRealData(e.target.checked);
                       loadDataSummary();
                     }}
-                    className="mr-2"
+                    className="mr-3 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   Use Real Data from Data Entry
                 </label>
-                <p className={`text-sm ${theme.text.secondary} mt-1`}>
-                  {useRealData ? 'Using actual ESG data from Data Entry module' : 'Using sample test data'}
+                <p className={`text-sm ${theme.text.secondary} mt-2 ml-8`}>
+                  {useRealData ? '✓ Using actual ESG data from Data Entry module' : '⚠ Using sample test data'}
                 </p>
               </div>
               
               {dataSummary && (
-                <div className="text-right">
-                  <p className={`text-sm ${theme.text.primary}`}>
+                <div className={`p-4 rounded-lg ${theme.bg.subtle} min-w-[200px]`}>
+                  <p className={`text-sm font-semibold ${theme.text.primary} mb-2`}>
                     Available Data: {dataSummary.totalEntries} entries
                   </p>
-                  <p className={`text-xs ${theme.text.secondary}`}>
-                    E: {dataSummary.categories.environmental} | 
-                    S: {dataSummary.categories.social} | 
-                    G: {dataSummary.categories.governance}
-                  </p>
+                  <div className="flex gap-3 text-xs">
+                    <span className={theme.text.secondary}>E: {dataSummary.categories.environmental}</span>
+                    <span className={theme.text.secondary}>S: {dataSummary.categories.social}</span>
+                    <span className={theme.text.secondary}>G: {dataSummary.categories.governance}</span>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {calculators.map((calc) => (
             <div
               key={calc.id}
-              className={`p-6 rounded-xl shadow-lg cursor-pointer transition-all ${
+              className={`p-4 rounded-lg shadow cursor-pointer transition-all ${
                 activeCalculator === calc.id
                   ? 'ring-2 ring-blue-500 bg-blue-50'
                   : theme.bg.card
               }`}
               onClick={() => setActiveCalculator(calc.id)}
             >
-              <div className="text-center">
+              <div className="flex flex-col items-center">
                 <div className="text-4xl mb-2">{calc.icon}</div>
-                <h3 className={`font-bold ${theme.text.primary}`}>{calc.name}</h3>
+                <h3 className={`font-semibold text-base mb-3 ${theme.text.primary}`}>{calc.name}</h3>
                 <Button
                   variant="primary"
                   size="sm"
@@ -293,9 +341,9 @@ const CalculatorDashboard = () => {
                     testCalculator(calc.id);
                   }}
                   disabled={loading}
-                  className="mt-3 w-full"
+                  className="w-full"
                 >
-                  Test Calculator
+                  {loading ? 'Testing...' : 'Test Calculator'}
                 </Button>
                 {renderResults(calc.id)}
               </div>
@@ -303,7 +351,7 @@ const CalculatorDashboard = () => {
           ))}
         </div>
 
-        <div className={`p-6 rounded-xl shadow-lg ${theme.bg.card}`}>
+        <div className={`p-6 rounded-lg shadow ${theme.bg.card}`}>
           <h2 className={`text-2xl font-bold mb-4 ${theme.text.primary}`}>
             Calculator Status
           </h2>

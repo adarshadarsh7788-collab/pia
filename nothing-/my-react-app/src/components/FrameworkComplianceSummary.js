@@ -69,9 +69,9 @@ const FrameworkComplianceSummary = ({ complianceData }) => {
           <div className="text-4xl mb-4">📊</div>
           <h4 className={`text-lg font-medium ${theme.text?.primary || 'text-gray-900'} mb-2`}>No Compliance Data Available</h4>
           <p className={`${theme.text?.secondary || 'text-gray-600'} mb-4`}>Add ESG data entries to analyze framework compliance and generate compliance scores.</p>
-          <div className="grid grid-cols-4 gap-8 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
             {['GRI', 'SASB', 'TCFD', 'BRSR'].map(framework => (
-              <div key={framework} className="text-center p-3 border-t-4 border-gray-300 bg-gray-50 rounded-b-lg">
+              <div key={framework} className="text-center p-4 border-t-4 border-gray-300 bg-gray-50 rounded-b-lg">
                 <div className="flex justify-center mb-2">{getCircularProgress(0)}</div>
                 <h5 className={`font-semibold text-sm ${theme.text?.primary || 'text-gray-900'} mb-1`}>{framework}</h5>
                 <span className="text-lg font-bold text-gray-400 block">0%</span>
@@ -101,7 +101,7 @@ const FrameworkComplianceSummary = ({ complianceData }) => {
         </span>
       </div>
 
-      <div className="grid grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {Object.entries(displayData).map(([framework, data]) => (
           <div key={framework} className={`text-center p-4 border-t-4 rounded-b-lg ${
             data.complianceScore >= 80 ? 'border-green-500 bg-green-50' : 

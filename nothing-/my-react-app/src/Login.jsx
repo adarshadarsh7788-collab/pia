@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from './contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaLeaf, FaUser } from 'react-icons/fa';
 import logo from './companyLogo.jpg';
+import { authenticateUser, initializePreconfiguredUsers, getRoleDisplayName } from './utils/rbac';
+import TwoFactorAuth from './components/TwoFactorAuth';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,6 +15,14 @@ const Login = () => {
   const [message, setMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSignup, setIsSignup] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('');
+  const [show2FA, setShow2FA] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null);
+
+  // Initialize preconfigured users on component mount
+  useEffect(() => {
+    initializePreconfiguredUsers();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,46 +52,40 @@ const Login = () => {
       return;
     }
     
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3004'}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+    // Authenticate user with RBAC system
+    const user = authenticateUser(email, password);
+    
+    if (user) {
+      // Check if 2FA is enabled
+      const is2FAEnabled = localStorage.getItem('2fa_enabled') === 'true';
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        localStorage.setItem('authToken', data.token);
-        localStorage.setItem('currentUser', email);
-        localStorage.setItem('isLoggedIn', 'true');
-        navigate('/');
+      if (is2FAEnabled) {
+        setPendingUser(user);
+        setShow2FA(true);
       } else {
-        setMessage(data.error || 'Invalid credentials');
+        completeLogin(user);
       }
-    } catch (error) {
-      const approvedUsers = JSON.parse(localStorage.getItem('approvedUsers') || '[]');
-      const pendingUsers = JSON.parse(localStorage.getItem('pendingUsers') || '[]');
-      
-      const isApproved = approvedUsers.some(user => user.email === email);
-      const isPending = pendingUsers.some(user => user.email === email && user.status === 'pending');
-      
-      // Remove hardcoded admin credentials - use proper authentication
-      if (isApproved) {
-        localStorage.setItem('currentUser', email.trim());
-        localStorage.setItem('isLoggedIn', 'true');
-        navigate('/');
-      } else if (isPending) {
-        setMessage('Account pending admin approval.');
-      } else {
-        setMessage('Server unavailable. Using offline mode.');
-        if (email.trim()) {
-          localStorage.setItem('currentUser', email.trim());
-          localStorage.setItem('isLoggedIn', 'true');
-          navigate('/');
-        }
-      }
+    } else {
+      setMessage('❌ Invalid email or password. Please try again.');
     }
+  };
+
+  const completeLogin = (user) => {
+    localStorage.setItem('currentUser', user.email);
+    localStorage.setItem('userRole', user.role);
+    localStorage.setItem('userFullName', user.fullName);
+    localStorage.setItem('isLoggedIn', 'true');
+    
+    setMessage(`✅ Login successful! Welcome ${user.fullName} (${getRoleDisplayName(user.role)})`);
+    
+    setTimeout(() => {
+      navigate('/');
+    }, 1000);
+  };
+
+  const handle2FAVerify = (code) => {
+    setShow2FA(false);
+    completeLogin(pendingUser);
   };
 
   const { isDark } = useTheme();
@@ -127,6 +131,38 @@ const Login = () => {
           </div>
           
           <form onSubmit={handleSubmit}>
+            {/* Role Selector */}
+            <div className={`animation mb-4 transition-all duration-700 ${!isSignup ? 'transform translate-x-0 opacity-100' : 'transform -translate-x-full opacity-0'}`} style={{
+              transitionDelay: !isSignup ? 'calc(0.1s * 21)' : 'calc(0.1s * 0)'
+            }}>
+              <select
+                value={selectedRole}
+                onChange={(e) => {
+                  const role = e.target.value;
+                  setSelectedRole(role);
+                  if (role === 'super_admin') {
+                    setEmail('superadmin1@esgenius.com');
+                    setPassword('Admin@2025');
+                  } else if (role === 'supervisor') {
+                    setEmail('supervisor1@esgenius.com');
+                    setPassword('Super@2025');
+                  } else if (role === 'data_entry') {
+                    setEmail('dataentry1@esgenius.com');
+                    setPassword('Data@2025');
+                  } else {
+                    setEmail('');
+                    setPassword('');
+                  }
+                }}
+                className={`w-full px-4 py-2 rounded-lg border-2 text-base font-semibold transition-all duration-500 ${isDark ? 'bg-gray-800 border-[#3a7a44] text-white' : 'bg-white border-[#3a7a44] text-gray-900'}`}
+              >
+                <option value="">Select Role (Quick Login)</option>
+                <option value="super_admin">🔴 Super Admin - Full Access</option>
+                <option value="supervisor">🔵 Supervisor - Edit & Delete</option>
+                <option value="data_entry">🟢 Data Entry - Update Only</option>
+              </select>
+            </div>
+
             <div className={`input-box animation relative w-full h-12 mt-6 transition-all duration-700 ${!isSignup ? 'transform translate-x-0 opacity-100' : 'transform -translate-x-full opacity-0'}`} style={{
               transitionDelay: !isSignup ? 'calc(0.1s * 22)' : 'calc(0.1s * 1)'
             }}>
@@ -311,6 +347,14 @@ const Login = () => {
           </div>
         )}
       </div>
+
+      {show2FA && (
+        <TwoFactorAuth
+          onVerify={handle2FAVerify}
+          onCancel={() => setShow2FA(false)}
+          email={pendingUser?.email}
+        />
+      )}
 
       <style>{`
         @keyframes float {

@@ -1,0 +1,12 @@
+{
+  "newDependencies": {
+    "nodemailer": "^6.9.7",
+    "ws": "^8.14.2",
+    "dotenv": "^16.3.1"
+  },
+  "scripts": {
+    "init-audit": "node initAuditSystem.js",
+    "start:enhanced": "node server-enhanced.js"
+  },
+  "installCommand": "npm install nodemailer ws dotenv"
+}

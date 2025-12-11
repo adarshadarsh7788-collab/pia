@@ -8,20 +8,28 @@ const WaterManagementForm = ({ onSave, onClose }) => {
   const theme = getThemeClasses(isDark);
   
   const [formData, setFormData] = useState({
-    // Water Withdrawal
+    // Mining Water Withdrawal (GRI-303-3)
     surface_water_withdrawal: '',
     groundwater_withdrawal: '',
     municipal_water_withdrawal: '',
     rainwater_harvested: '',
     
-    // Water Discharge
+    // Mining Water Discharge (GRI-303-4)
     treated_wastewater_discharge: '',
     untreated_wastewater_discharge: '',
-    surface_water_discharge: '',
+    mine_water_discharge: '',
+    tailings_water_discharge: '',
     
-    // Water Recycling & Reuse
+    // Mining Water Recycling (GRI-303-5)
     water_recycled: '',
     water_reused: '',
+    process_water_recycled: '',
+    
+    // Mining-Specific Metrics
+    water_used_in_processing: '',
+    water_used_in_dust_suppression: '',
+    tailings_dam_water_storage: '',
+    acid_mine_drainage_volume: '',
     
     // Water Quality
     water_quality_parameters: '',
@@ -31,7 +39,8 @@ const WaterManagementForm = ({ onSave, onClose }) => {
     water_stress_area: false,
     water_conservation_initiatives: '',
     reporting_period: new Date().getFullYear(),
-    facility_location: ''
+    facility_location: '',
+    mine_site_name: ''
   });
 
   const [calculations, setCalculations] = useState({
@@ -104,8 +113,8 @@ const WaterManagementForm = ({ onSave, onClose }) => {
     <div className={`max-w-4xl mx-auto p-6 ${theme.bg.card} rounded-xl shadow-lg`}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className={`text-2xl font-bold ${theme.text.primary}`}>💧 Water Management</h2>
-          <p className={`text-sm ${theme.text.secondary}`}>Track water withdrawal, discharge, and recycling</p>
+          <h2 className={`text-2xl font-bold ${theme.text.primary}`}>⛏️💧 Mining Water Management</h2>
+          <p className={`text-sm ${theme.text.secondary}`}>Track mining water withdrawal, discharge, and recycling - GRI 303</p>
         </div>
         <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
       </div>
@@ -151,9 +160,9 @@ const WaterManagementForm = ({ onSave, onClose }) => {
           </div>
         </div>
 
-        {/* Water Discharge */}
+        {/* Mining Water Discharge - GRI-303-4 */}
         <div className={`p-4 rounded-lg border-l-4 border-orange-500 ${theme.bg.subtle}`}>
-          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Water Discharge (cubic meters)</h3>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining Water Discharge (m³) - GRI-303-4</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="number"
@@ -171,9 +180,16 @@ const WaterManagementForm = ({ onSave, onClose }) => {
             />
             <input
               type="number"
-              placeholder="Surface Water Discharge"
-              value={formData.surface_water_discharge}
-              onChange={(e) => handleInputChange('surface_water_discharge', e.target.value)}
+              placeholder="Mine Water Discharge"
+              value={formData.mine_water_discharge}
+              onChange={(e) => handleInputChange('mine_water_discharge', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Tailings Water Discharge"
+              value={formData.tailings_water_discharge}
+              onChange={(e) => handleInputChange('tailings_water_discharge', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
           </div>
@@ -181,6 +197,41 @@ const WaterManagementForm = ({ onSave, onClose }) => {
             <span className={`font-bold ${theme.text.primary}`}>
               Total Discharge: {calculations.total_discharge.toFixed(2)} m³
             </span>
+          </div>
+        </div>
+
+        {/* Mining-Specific Water Usage */}
+        <div className={`p-4 rounded-lg border-l-4 border-purple-500 ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining Operations Water Use (m³)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="number"
+              placeholder="Water in Ore Processing"
+              value={formData.water_used_in_processing}
+              onChange={(e) => handleInputChange('water_used_in_processing', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Water for Dust Suppression"
+              value={formData.water_used_in_dust_suppression}
+              onChange={(e) => handleInputChange('water_used_in_dust_suppression', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Tailings Dam Water Storage"
+              value={formData.tailings_dam_water_storage}
+              onChange={(e) => handleInputChange('tailings_dam_water_storage', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Acid Mine Drainage Volume"
+              value={formData.acid_mine_drainage_volume}
+              onChange={(e) => handleInputChange('acid_mine_drainage_volume', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
           </div>
         </div>
 
@@ -212,11 +263,18 @@ const WaterManagementForm = ({ onSave, onClose }) => {
 
         {/* Additional Information */}
         <div className={`p-4 rounded-lg ${theme.bg.subtle}`}>
-          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Additional Information</h3>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mine Site Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
-              placeholder="Facility Location"
+              placeholder="Mine Site Name"
+              value={formData.mine_site_name}
+              onChange={(e) => handleInputChange('mine_site_name', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="text"
+              placeholder="Mine Location (Region/Country)"
               value={formData.facility_location}
               onChange={(e) => handleInputChange('facility_location', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import companyLogo from '../companyLogo.jpg';
+import { getUserRole, USER_ROLES } from '../utils/rbac';
+import ApprovalsPanel from './ApprovalsPanel';
 
-const ProfessionalHeader = ({ onLogout }) => {
+const ProfessionalHeader = ({ onLogout, actions = [] }) => {
   const { isDark, toggleTheme } = useTheme();
   const location = useLocation();
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -11,8 +13,11 @@ const ProfessionalHeader = ({ onLogout }) => {
   const [recentAlerts, setRecentAlerts] = useState([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [backgroundTheme, setBackgroundTheme] = useState(localStorage.getItem('backgroundTheme') || null);
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const currentUser = localStorage.getItem('currentUser');
-  const isAdmin = currentUser === 'admin@esgenius.com';
+  const userRole = getUserRole();
+  const isAdmin = userRole === USER_ROLES.SUPER_ADMIN;
 
   useEffect(() => {
     const loadPendingUsers = () => {
@@ -32,49 +37,14 @@ const ProfessionalHeader = ({ onLogout }) => {
       setRecentAlerts(last24Hours.slice(0, 10));
     };
     
-    const generateSampleAlerts = () => {
-      const existingAlerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
-      if (existingAlerts.length === 0) {
-        const sampleAlerts = [
-          {
-            id: Date.now() + 1,
-            type: 'warning',
-            title: 'Carbon Emissions Target Review',
-            message: 'Your carbon emissions are approaching the quarterly target limit',
-            category: 'Environmental',
-            timestamp: new Date().toISOString(),
-            read: false
-          },
-          {
-            id: Date.now() + 2,
-            type: 'info',
-            title: 'Sustainability Report Due',
-            message: 'Quarterly sustainability report submission deadline is in 3 days',
-            category: 'Reporting',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            read: false
-          },
-          {
-            id: Date.now() + 3,
-            type: 'success',
-            title: 'ESG Score Improved',
-            message: 'Your overall ESG score has increased by 5 points this month',
-            category: 'Performance',
-            timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-            read: false
-          }
-        ];
-        localStorage.setItem('recentAlerts', JSON.stringify(sampleAlerts));
-      }
-    };
-    
-    generateSampleAlerts();
     loadPendingUsers();
     loadRecentAlerts();
+    loadPendingApprovals();
     
     const interval = setInterval(() => {
       loadPendingUsers();
       loadRecentAlerts();
+      loadPendingApprovals();
     }, 2000);
     
     return () => clearInterval(interval);
@@ -128,8 +98,16 @@ const ProfessionalHeader = ({ onLogout }) => {
     setRecentAlerts([]);
   };
 
+  const loadPendingApprovals = () => {
+    if (userRole === USER_ROLES.SUPERVISOR || userRole === USER_ROLES.SUPER_ADMIN) {
+      const workflows = JSON.parse(localStorage.getItem('approval_workflows') || '[]');
+      const pending = workflows.filter(w => w.status === 'pending').length;
+      setPendingCount(pending);
+    }
+  };
+
   const unreadAlertsCount = recentAlerts.filter(alert => !alert.read).length;
-  const totalNotifications = (isAdmin ? pendingUsers.length : 0) + unreadAlertsCount;
+  const totalNotifications = (isAdmin ? pendingUsers.length : 0) + unreadAlertsCount + pendingCount;
 
   const applyBackgroundTheme = (themeUrl) => {
     const overlay = isDark 
@@ -193,7 +171,8 @@ const ProfessionalHeader = ({ onLogout }) => {
     { path: '/analytics', label: 'Analytics', icon: '📈' },
     { path: '/compliance', label: 'Compliance', icon: '✅' },
     { path: '/regulatory', label: 'Regulatory', icon: '⚖️' },
-    { path: '/stakeholders', label: 'Stakeholders', icon: '👥' }
+    { path: '/stakeholders', label: 'Stakeholders', icon: '👥' },
+    { path: '/user-management', label: 'Users', icon: '👤', adminOnly: true }
   ];
 
   return (
@@ -234,6 +213,7 @@ const ProfessionalHeader = ({ onLogout }) => {
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-1 flex-1 justify-center max-w-2xl">
             {navItems.map((item) => {
+              if (item.adminOnly && !isAdmin) return null;
               const isActive = location.pathname === item.path;
               return (
                 <Link
@@ -519,6 +499,7 @@ const ProfessionalHeader = ({ onLogout }) => {
           </div>
         </div>
       </div>
+
     </header>
   );
 };

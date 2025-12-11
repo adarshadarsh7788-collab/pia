@@ -232,8 +232,7 @@ const FrameworkCompliance = () => {
   };
 
   return (
-    <div className={`min-h-screen ${theme.background} p-6`}>
-      <div className="max-w-7xl mx-auto">
+    <div className="space-y-6">
         <div className="mb-6">
           <h1 className={`text-3xl font-bold ${theme.text} mb-2`}>Framework Compliance</h1>
           <p className={`${theme.textSecondary}`}>
@@ -292,7 +291,7 @@ const FrameworkCompliance = () => {
         </div>
 
         {/* Recommendations */}
-        <div className={`p-4 rounded-lg ${theme.cardBg} border ${theme.border} mt-6`}>
+        <div className={`p-4 rounded-lg ${theme.cardBg || 'bg-white'} border ${theme.border || 'border-gray-200'} mt-6`}>
           <h3 className={`text-lg font-semibold ${theme.text} mb-4`}>Recommendations</h3>
           <div className="space-y-2">
             {complianceScore < 60 && (
@@ -312,7 +311,6 @@ const FrameworkCompliance = () => {
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 };

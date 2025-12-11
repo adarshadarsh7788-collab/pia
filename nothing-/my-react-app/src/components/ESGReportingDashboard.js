@@ -63,6 +63,22 @@ const ESGReportingDashboard = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const deleteReport = (framework) => {
+    setReportResults(prev => ({
+      ...prev,
+      reports: Object.fromEntries(Object.entries(prev.reports).filter(([key]) => key !== framework))
+    }));
+    showToast(`${framework} report deleted`, 'success');
+  };
+
+  const deleteGap = (index) => {
+    setReportResults(prev => ({
+      ...prev,
+      gaps: prev.gaps.filter((_, i) => i !== index)
+    }));
+    showToast('Gap deleted', 'success');
+  };
+
   const renderFrameworksTab = () => (
     <div className="space-y-6">
       <div className={`p-6 rounded-lg ${theme.bg.card}`}>
@@ -110,7 +126,14 @@ const ESGReportingDashboard = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(reportResults.reports).map(([framework, report]) => (
-              <div key={framework} className={`p-4 border rounded-lg ${theme.bg.subtle}`}>
+              <div key={framework} className={`p-4 border rounded-lg ${theme.bg.subtle} relative`}>
+                <button
+                  onClick={() => deleteReport(framework)}
+                  className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                  title="Delete report"
+                >
+                  ✕
+                </button>
                 <h4 className={`font-semibold ${theme.text.primary}`}>{framework}</h4>
                 <div className="mt-2 space-y-1 text-sm">
                   <div>Completeness: {report.completeness?.toFixed(1)}%</div>
@@ -141,10 +164,17 @@ const ESGReportingDashboard = () => {
             {reportResults.gaps.map((gap, index) => (
               <div
                 key={index}
-                className={`p-3 rounded border-l-4 ${
+                className={`p-3 rounded border-l-4 relative ${
                   gap.severity === 'high' ? 'border-red-500 bg-red-50' : 'border-yellow-500 bg-yellow-50'
                 }`}
               >
+                <button
+                  onClick={() => deleteGap(index)}
+                  className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                  title="Delete gap"
+                >
+                  ✕
+                </button>
                 <div className="font-medium">{gap.framework}</div>
                 <div className="text-sm text-gray-600">{gap.description}</div>
               </div>

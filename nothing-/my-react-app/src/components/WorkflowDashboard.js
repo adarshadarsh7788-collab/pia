@@ -24,20 +24,26 @@ const WorkflowDashboard = () => {
   }, []);
 
   const loadWorkflowData = () => {
-    // Load pending approvals from localStorage
+    // Load pending approvals from approval_workflows
+    const workflows = JSON.parse(localStorage.getItem('approval_workflows') || '[]');
+    const pending = workflows.filter(w => w.status === 'pending');
+    
+    // Get the actual data for each workflow
     const esgData = JSON.parse(localStorage.getItem('esgData') || '[]');
-    const pending = esgData.filter(item => item.status === 'Pending' || !item.status);
-    setPendingApprovals(pending);
-
-    // Load notifications
-    const userNotifications = NotificationSystem.getNotifications(currentUser);
-    setNotifications(userNotifications);
-
-    // Load recent audit entries
-    const recentAudit = AuditTrail.getAuditLog({ 
-      user: currentUser,
-      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const pendingWithData = pending.map(workflow => {
+      const data = esgData.find(d => d.id === workflow.dataId);
+      return { ...workflow, data };
     });
+    
+    setPendingApprovals(pendingWithData);
+
+    // Load notifications from recentAlerts
+    const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+    setNotifications(alerts.slice(0, 10));
+
+    // Load recent audit entries from auditSystem
+    const AuditSystem = require('../utils/auditSystem').default;
+    const recentAudit = AuditSystem.getAuditTrail();
     setAuditEntries(recentAudit.slice(0, 10));
 
     // Validate recent data
@@ -48,74 +54,81 @@ const WorkflowDashboard = () => {
   };
 
   const setupNotificationSubscription = () => {
-    NotificationSystem.subscribe(currentUser, (notification) => {
-      setNotifications(prev => [notification, ...prev.slice(0, 9)]);
-      showToast(notification.title, 'info');
-    });
+    // Listen for storage changes to update notifications
+    const handleStorageChange = () => {
+      const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+      setNotifications(alerts.slice(0, 10));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   };
 
   const handleApproveItems = (selectedItems, comments) => {
-    const approvedData = selectedItems.map(index => pendingApprovals[index]);
+    const AuditSystem = require('../utils/auditSystem').default;
     
-    // Update status
-    approvedData.forEach(item => {
-      item.status = 'Approved';
-      item.approvedBy = currentUser;
-      item.approvedAt = new Date().toISOString();
-      item.approvalComments = comments;
+    selectedItems.forEach(index => {
+      const workflow = pendingApprovals[index];
+      AuditSystem.approveWorkflow(workflow.id, comments);
+      
+      // Update data status
+      const esgData = JSON.parse(localStorage.getItem('esgData') || '[]');
+      const dataIndex = esgData.findIndex(d => d.id === workflow.dataId);
+      if (dataIndex !== -1) {
+        esgData[dataIndex].status = 'Approved';
+        localStorage.setItem('esgData', JSON.stringify(esgData));
+      }
     });
-
-    // Update localStorage
-    const allData = JSON.parse(localStorage.getItem('esgData') || '[]');
-    const updatedData = allData.map(item => {
-      const approved = approvedData.find(a => a.id === item.id);
-      return approved || item;
-    });
-    localStorage.setItem('esgData', JSON.stringify(updatedData));
-
-    // Log audit trail
-    AuditTrail.trackApproval(approvedData, currentUser, 'approve');
 
     // Create notification
-    NotificationSystem.createNotification(
-      'approval_completed',
-      'Items Approved',
-      `${approvedData.length} ESG data entries have been approved.`,
-      currentUser,
-      'low'
-    );
+    const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+    alerts.unshift({
+      id: Date.now(),
+      type: 'success',
+      title: 'Approval Completed',
+      message: `${selectedItems.length} item(s) approved successfully`,
+      category: 'Approval',
+      timestamp: new Date().toISOString(),
+      read: false
+    });
+    localStorage.setItem('recentAlerts', JSON.stringify(alerts));
 
-    setPendingApprovals(prev => prev.filter((_, index) => !selectedItems.includes(index)));
-    setShowApprovalModal(false);
     showToast('Items approved successfully', 'success');
+    setShowApprovalModal(false);
+    loadWorkflowData();
   };
 
   const handleRejectItems = (selectedItems, comments) => {
-    const rejectedData = selectedItems.map(index => pendingApprovals[index]);
+    const AuditSystem = require('../utils/auditSystem').default;
     
-    // Update status
-    rejectedData.forEach(item => {
-      item.status = 'Rejected';
-      item.rejectedBy = currentUser;
-      item.rejectedAt = new Date().toISOString();
-      item.rejectionComments = comments;
+    selectedItems.forEach(index => {
+      const workflow = pendingApprovals[index];
+      AuditSystem.rejectWorkflow(workflow.id, comments);
+      
+      // Update data status
+      const esgData = JSON.parse(localStorage.getItem('esgData') || '[]');
+      const dataIndex = esgData.findIndex(d => d.id === workflow.dataId);
+      if (dataIndex !== -1) {
+        esgData[dataIndex].status = 'Rejected';
+        localStorage.setItem('esgData', JSON.stringify(esgData));
+      }
     });
 
-    // Log audit trail
-    AuditTrail.trackApproval(rejectedData, currentUser, 'reject');
-
     // Create notification
-    NotificationSystem.createNotification(
-      'approval_rejected',
-      'Items Rejected',
-      `${rejectedData.length} ESG data entries have been rejected and require revision.`,
-      currentUser,
-      'medium'
-    );
+    const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+    alerts.unshift({
+      id: Date.now(),
+      type: 'warning',
+      title: 'Items Rejected',
+      message: `${selectedItems.length} item(s) rejected and require revision`,
+      category: 'Approval',
+      timestamp: new Date().toISOString(),
+      read: false
+    });
+    localStorage.setItem('recentAlerts', JSON.stringify(alerts));
 
-    setPendingApprovals(prev => prev.filter((_, index) => !selectedItems.includes(index)));
-    setShowApprovalModal(false);
     showToast('Items rejected', 'warning');
+    setShowApprovalModal(false);
+    loadWorkflowData();
   };
 
   const runDataValidation = () => {
@@ -139,15 +152,17 @@ const WorkflowDashboard = () => {
   };
 
   const markNotificationRead = (notificationId) => {
-    NotificationSystem.markAsRead(notificationId, currentUser);
-    setNotifications(prev => 
-      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
-    );
+    const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+    const updated = alerts.map(n => n.id === notificationId ? { ...n, read: true } : n);
+    localStorage.setItem('recentAlerts', JSON.stringify(updated));
+    setNotifications(updated.slice(0, 10));
   };
 
   const dismissNotification = (notificationId) => {
-    NotificationSystem.markAsDismissed(notificationId, currentUser);
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+    const filtered = alerts.filter(n => n.id !== notificationId);
+    localStorage.setItem('recentAlerts', JSON.stringify(filtered));
+    setNotifications(filtered.slice(0, 10));
   };
 
   const showToast = (message, type = 'info') => {
@@ -257,11 +272,45 @@ const WorkflowDashboard = () => {
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Notifications Panel */}
+          {/* Approval Workflows Panel */}
           <div className={`p-6 rounded-xl shadow-lg ${theme.bg.card}`}>
-            <h2 className={`text-xl font-bold mb-4 ${theme.text.primary}`}>
-              Recent Notifications
+            <h2 className={`text-xl font-bold mb-4 ${theme.text.primary} flex items-center gap-2`}>
+              ✅ Approval Workflows
             </h2>
+            <div className="space-y-3 max-h-96 overflow-y-auto mb-6">
+              {pendingApprovals.length > 0 ? (
+                pendingApprovals.map((workflow, index) => (
+                  <div key={workflow.id} className={`p-4 rounded-lg border ${theme.border.primary} ${theme.bg.subtle}`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className={`font-semibold ${theme.text.primary}`}>{workflow.data?.companyName || 'ESG Data'}</h3>
+                        <p className={`text-sm ${theme.text.secondary}`}>Submitted: {new Date(workflow.submittedAt).toLocaleDateString()}</p>
+                        <p className={`text-xs ${theme.text.muted}`}>By: {workflow.submittedBy}</p>
+                      </div>
+                      <span className="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">PENDING</span>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => handleApproveItems([index], 'Approved')}
+                        className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                      >
+                        ✅ Approve
+                      </button>
+                      <button
+                        onClick={() => handleRejectItems([index], 'Rejected')}
+                        className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className={`text-center py-8 ${theme.text.secondary}`}>No pending approvals</p>
+              )}
+            </div>
+            
+            <h3 className={`text-lg font-semibold mb-3 ${theme.text.primary}`}>Recent Notifications</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {notifications.length > 0 ? (
                 notifications.map((notification) => (

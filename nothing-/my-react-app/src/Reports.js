@@ -12,9 +12,10 @@ import { getThemeClasses } from "./utils/themeUtils";
 import ProfessionalHeader from "./components/ProfessionalHeader";
 import { MetricCard, StatusCard } from "./components/ProfessionalCard";
 import { Alert, Button, Input, Modal, Toast } from "./components/ProfessionalUX";
-import { RBACManager, PERMISSIONS } from "./utils/rbac";
+import { hasPermission, PERMISSIONS } from "./utils/rbac";
 import { ESG_FRAMEWORKS, AI_INSIGHTS_ENGINE, REGULATORY_COMPLIANCE } from "./utils/enhancedFrameworks";
 import { validateFrameworkCompliance, generateFrameworkReport } from "./utils/frameworkMapper";
+import { validateMiningMetrics, MINING_METRICS, ZIMBABWE_MINING_REQUIREMENTS } from "./utils/miningMetrics";
 import FrameworkCompliance from "./components/FrameworkCompliance";
 import FrameworkComplianceSummary from "./components/FrameworkComplianceSummary";
 import FrameworkReportSelector from "./components/FrameworkReportSelector";
@@ -24,8 +25,10 @@ import { generateExecutiveProfessionalReport } from "./utils/enhancedProfessiona
 import { generateGRIPDF, generateSASBPDF, generateTCFDPDF, generateBRSRPDF, generateEUTaxonomyPDF } from "./utils/frameworkPDFGenerators";
 import ProfessionalReportTemplate from "./components/ProfessionalReportTemplate";
 import CustomReportBuilder from "./components/CustomReportBuilder";
+import ReportingFrameworkHub from "./components/ReportingFrameworkHub";
 // sample data removed: no dummy/sample data should be auto-loaded in Reports
 import { ReportGenerator } from "./utils/reportGenerator";
+import { addSampleWasteData } from "./utils/addSampleWasteData";
 
 
 const COLORS = ["#3a7a44", "#6b7bd6", "#ffbb28", "#ff8042"];
@@ -161,9 +164,10 @@ function Reports() {
     id: localStorage.getItem('currentUser') || 'user_123' 
   });
   const [data, setData] = useState([]);
-  const [selectedReport, setSelectedReport] = useState("SEBI BRSR");
+  const [selectedReport, setSelectedReport] = useState("GRI Standards");
   const [filterStatus, setFilterStatus] = useState("All");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [historyYearFilter, setHistoryYearFilter] = useState('all');
   const [yearlyData, setYearlyData] = useState([]);
   const [overallSummary, setOverallSummary] = useState({});
   const [showPreview, setShowPreview] = useState(false);
@@ -180,7 +184,24 @@ function Reports() {
   const [showFrameworkCompliance, setShowFrameworkCompliance] = useState(false);
   const [frameworkComplianceData, setFrameworkComplianceData] = useState({});
   const [complianceSummary, setComplianceSummary] = useState({});
+  const [miningCompliance, setMiningCompliance] = useState({
+    score: 0,
+    compliance: {
+      'gri-11': false,
+      'gri-303': false,
+      'gri-304': false,
+      'gri-403': false,
+      'gri-413': false,
+      'ifrs-s1': false,
+      'ifrs-s2': false
+    }
+  });
   const [showFrameworkReports, setShowFrameworkReports] = useState(false);
+  const [showFrameworkHub, setShowFrameworkHub] = useState(false);
+  const [frameworkFilter, setFrameworkFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('compliance');
+  const [viewMode, setViewMode] = useState('grid');
+  const [selectedFrameworks, setSelectedFrameworks] = useState([]);
 
   // Clear all data from localStorage
   const clearAllData = () => {
@@ -206,6 +227,18 @@ function Reports() {
         setOverallSummary({});
         setComplianceSummary({});
         setFrameworkComplianceData({});
+        setMiningCompliance({
+          score: 0,
+          compliance: {
+            'gri-11': false,
+            'gri-303': false,
+            'gri-304': false,
+            'gri-403': false,
+            'gri-413': false,
+            'ifrs-s1': false,
+            'ifrs-s2': false
+          }
+        });
         
         showToast('All data cleared successfully', 'success');
         console.log('Cleared localStorage keys:', keysToRemove);
@@ -310,12 +343,13 @@ function Reports() {
     const normalized = normalizeData(data);
     const envData = normalized.filter(item => item.category === 'environmental');
     const metrics = [
-      { name: 'Total Electricity Consumption', value: getMetricValue(envData, 'energyConsumption') + ' kWh' },
-      { name: 'Renewable Electricity Consumption', value: getMetricValue(envData, 'renewableEnergyRatio') + ' kWh' },
-      { name: 'Total Fuel Consumption', value: getMetricValue(envData, 'fuelConsumption') + ' liters' },
-      { name: 'Carbon Emissions', value: getMetricValue(envData, 'carbonEmissions') + ' T CO2e' },
-      { name: 'Water Usage', value: getMetricValue(envData, 'waterUsage') + ' cubic meters' },
-      { name: 'Waste Management', value: getMetricValue(envData, 'wasteManagement') + ' tons' }
+      { name: 'Scope 1 Emissions', value: getMetricValue(envData, 'scope1Emissions') + ' tCO2e' },
+      { name: 'Scope 2 Emissions', value: getMetricValue(envData, 'scope2Emissions') + ' tCO2e' },
+      { name: 'Scope 3 Emissions', value: getMetricValue(envData, 'scope3Emissions') + ' tCO2e' },
+      { name: 'Energy Consumption', value: getMetricValue(envData, 'energyConsumption') + ' MWh' },
+      { name: 'Renewable Energy', value: getMetricValue(envData, 'renewableEnergyPercentage') + ' %' },
+      { name: 'Water Withdrawal', value: getMetricValue(envData, 'waterWithdrawal') + ' m³' },
+      { name: 'Waste Generated', value: getMetricValue(envData, 'wasteGenerated') + ' tonnes' }
     ];
     return metrics.filter(m => m.value && String(m.value).trim() !== '' && !String(m.value).startsWith('0 '));
   };
@@ -324,12 +358,11 @@ function Reports() {
     const normalized = normalizeData(data);
     const socialData = normalized.filter(item => item.category === 'social');
     return [
-      { name: 'Total Number of Employees', value: getMetricValue(socialData, 'totalEmployees') },
-      { name: 'Female Employees Percentage', value: getMetricValue(socialData, 'femaleEmployeesPercentage') + ' %' },
-      { name: 'Average Training Hours per Employee', value: getMetricValue(socialData, 'trainingHours') + ' hrs/yr' },
-      { name: 'Community Investment Spend', value: getMetricValue(socialData, 'communityInvestment') + ' INR' },
-      { name: 'Employee Turnover Rate', value: getMetricValue(socialData, 'employeeTurnover') + ' %' },
-      { name: 'Workplace Safety Incidents', value: getMetricValue(socialData, 'workplaceSafety') }
+      { name: 'Total Employees', value: getMetricValue(socialData, 'totalEmployees') },
+      { name: 'Female Employees', value: getMetricValue(socialData, 'femaleEmployeesPercentage') + ' %' },
+      { name: 'Lost Time Injury Rate', value: getMetricValue(socialData, 'lostTimeInjuryRate') },
+      { name: 'Training Hours per Employee', value: getMetricValue(socialData, 'trainingHoursPerEmployee') + ' hrs' },
+      { name: 'Community Investment', value: getMetricValue(socialData, 'communityInvestment') + ' $' }
     ].filter(m => m.value && String(m.value).trim() !== '' && !String(m.value).startsWith('0'));
   };
 
@@ -337,12 +370,11 @@ function Reports() {
     const normalized = normalizeData(data);
     const govData = normalized.filter(item => item.category === 'governance');
     return [
-      { name: '% of Independent Board Members', value: getMetricValue(govData, 'boardDiversity') + ' %' },
-      { name: 'Data Privacy Policy', value: getMetricValue(govData, 'dataPrivacyPolicy') ? 'Yes' : 'No' },
-      { name: 'Total Revenue', value: getMetricValue(govData, 'totalRevenue') + ' INR' },
-      { name: 'Ethics Violations', value: getMetricValue(govData, 'ethicsViolations') },
-      { name: 'Transparency Score', value: getMetricValue(govData, 'transparencyScore') + ' %' },
-      { name: 'Risk Management Score', value: getMetricValue(govData, 'riskManagement') + ' %' }
+      { name: 'Board Size', value: getMetricValue(govData, 'boardSize') },
+      { name: 'Independent Directors', value: getMetricValue(govData, 'independentDirectorsPercentage') + ' %' },
+      { name: 'Female Directors', value: getMetricValue(govData, 'femaleDirectorsPercentage') + ' %' },
+      { name: 'Ethics Training Completion', value: getMetricValue(govData, 'ethicsTrainingCompletion') + ' %' },
+      { name: 'Corruption Incidents', value: getMetricValue(govData, 'corruptionIncidents') }
     ].filter(m => m.value && String(m.value).trim() !== '' && !String(m.value).startsWith('0'));
   };
 
@@ -352,28 +384,36 @@ function Reports() {
     const socialData = normalized.filter(item => item.category === 'social');
     const govData = normalized.filter(item => item.category === 'governance');
     
-    const totalRevenue = getMetricValue(govData, 'totalRevenue');
-    const carbonEmissions = getMetricValue(envData, 'carbonEmissions');
-    const communityInvestment = getMetricValue(socialData, 'communityInvestment');
-    const renewableRatio = getMetricValue(envData, 'renewableEnergyRatio');
-    const diversityRatio = getMetricValue(socialData, 'femaleEmployeesPercentage');
-    
     const metrics = [];
     
-    if (carbonEmissions > 0 && totalRevenue > 0) {
-      metrics.push({ name: 'Carbon Intensity', value: (carbonEmissions / totalRevenue).toFixed(6) + ' T CO2e/INR' });
+    // Carbon Intensity
+    const scope1 = getMetricValue(envData, 'scope1Emissions');
+    const scope2 = getMetricValue(envData, 'scope2Emissions');
+    const energy = getMetricValue(envData, 'energyConsumption');
+    if (scope1 > 0 && scope2 > 0 && energy > 0) {
+      const carbonIntensity = ((scope1 + scope2) / energy).toFixed(3);
+      metrics.push({ name: 'Carbon Intensity', value: carbonIntensity + ' tCO2e/MWh' });
     }
     
-    if (renewableRatio > 0) {
-      metrics.push({ name: 'Renewable Electricity Ratio', value: renewableRatio.toFixed(2) + ' %' });
+    // Overall ESG Score
+    if (overallSummary.overall && overallSummary.overall !== '-') {
+      metrics.push({ name: 'Overall ESG Score', value: overallSummary.overall + '/100' });
     }
     
-    if (diversityRatio > 0) {
-      metrics.push({ name: 'Gender Diversity Ratio', value: diversityRatio.toFixed(0) + ' %' });
+    // Community Investment per Employee
+    const communityInv = getMetricValue(socialData, 'communityInvestment');
+    const totalEmp = getMetricValue(socialData, 'totalEmployees');
+    if (communityInv > 0 && totalEmp > 0) {
+      const invPerEmp = Math.round(communityInv / totalEmp);
+      metrics.push({ name: 'Community Investment per Employee', value: '$' + invPerEmp });
     }
     
-    if (communityInvestment > 0 && totalRevenue > 0) {
-      metrics.push({ name: 'Community Spend Ratio', value: ((communityInvestment / totalRevenue) * 100).toFixed(2) + ' %' });
+    // Board Independence Index
+    const boardSize = getMetricValue(govData, 'boardSize');
+    const indepDirectors = getMetricValue(govData, 'independentDirectorsPercentage');
+    if (boardSize > 0 && indepDirectors > 0) {
+      const indepIndex = (indepDirectors / 100).toFixed(1);
+      metrics.push({ name: 'Board Independence Index', value: indepIndex + '/' + (boardSize / 10).toFixed(0) });
     }
     
     return metrics;
@@ -416,47 +456,6 @@ function Reports() {
     const normalized = normalizeData(data);
     
     switch(selectedReport) {
-      case "SEBI BRSR":
-        const esgData = [
-          { name: 'Environmental', value: parseFloat(overallSummary.environmental) || 0 },
-          { name: 'Social', value: parseFloat(overallSummary.social) || 0 },
-          { name: 'Governance', value: parseFloat(overallSummary.governance) || 0 }
-        ].filter(item => item.value > 0);
-        
-        if (esgData.length === 0) {
-          return (
-            <div className="h-[250px] flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <p className="text-lg mb-2">🇮🇳</p>
-                <p>No SEBI BRSR data available</p>
-                <p className="text-sm">Add ESG data to generate BRSR compliance charts</p>
-                <div className="mt-3">
-                  <button
-                    onClick={() => window.location.href = '/data-entry'}
-                    className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                  >
-                    Add Data
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        }
-        
-        return (
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={esgData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis domain={[0, 100]} />
-                <Tooltip formatter={(value) => [`${value}`, 'Score']} />
-                <Bar dataKey="value" fill="#059669" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        );
-      
       case "GRI Standards":
         const griData = chartData();
         if (griData.length === 0) {
@@ -587,6 +586,103 @@ function Reports() {
           </div>
         );
       
+      case "IFRS S1/S2":
+        const ifrsMetrics = normalized.filter(item => 
+          (item.category === 'environmental' && (item.metric.includes('scope') || item.metric.includes('climate') || item.metric.includes('emissions'))) ||
+          (item.category === 'governance' && (item.metric.includes('climate') || item.metric.includes('sustainability') || item.metric.includes('risk')))
+        );
+        
+        let ifrsData = [
+          { name: 'Scope 1', value: getMetricValue(normalized.filter(i => i.category === 'environmental'), 'scope1Emissions') || 0, fill: '#ef4444', category: 'Climate' },
+          { name: 'Scope 2', value: getMetricValue(normalized.filter(i => i.category === 'environmental'), 'scope2Emissions') || 0, fill: '#f59e0b', category: 'Climate' },
+          { name: 'Scope 3', value: getMetricValue(normalized.filter(i => i.category === 'environmental'), 'scope3Emissions') || 0, fill: '#eab308', category: 'Climate' },
+          { name: 'Climate Risk', value: getMetricValue(normalized.filter(i => i.category === 'governance'), 'climateRiskDisclosure') || 0, fill: '#3b82f6', category: 'Governance' },
+          { name: 'Sustainability Gov', value: getMetricValue(normalized.filter(i => i.category === 'governance'), 'sustainabilityGovernance') || 0, fill: '#8b5cf6', category: 'Governance' }
+        ].filter(item => item.value > 0);
+        
+        if (ifrsData.length === 0) {
+          return (
+            <div className="h-[250px] flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <p className="text-lg mb-2">📊</p>
+                <p>No IFRS S1/S2 data available</p>
+                <p className="text-sm">Add climate and sustainability governance data</p>
+              </div>
+            </div>
+          );
+        }
+        
+        const climateData = ifrsData.filter(d => d.category === 'Climate');
+        const govData = ifrsData.filter(d => d.category === 'Governance');
+        
+        return (
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ifrsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                <XAxis dataKey="name" angle={-15} textAnchor="end" height={80} stroke={isDark ? '#9ca3af' : '#6b7280'} />
+                <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value, name) => [value, name]}
+                />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {ifrsData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      
+      case "ISSB Standards":
+        const issbMetrics = normalized.filter(item => 
+          (item.category === 'environmental' && (item.metric.includes('scope') || item.metric.includes('climate'))) ||
+          (item.category === 'governance' && (item.metric.includes('climate') || item.metric.includes('sustainability')))
+        );
+        
+        let issbData = [
+          { name: 'Climate Risk Disclosure', value: getMetricValue(normalized.filter(i => i.category === 'governance'), 'climateRiskDisclosure') || 0, fill: '#3b82f6' },
+          { name: 'Sustainability Governance', value: getMetricValue(normalized.filter(i => i.category === 'governance'), 'sustainabilityGovernance') || 0, fill: '#8b5cf6' },
+          { name: 'Scope 1 Emissions', value: getMetricValue(normalized.filter(i => i.category === 'environmental'), 'scope1Emissions') || 0, fill: '#ef4444' },
+          { name: 'Scope 2 Emissions', value: getMetricValue(normalized.filter(i => i.category === 'environmental'), 'scope2Emissions') || 0, fill: '#f59e0b' }
+        ].filter(item => item.value > 0);
+        
+        if (issbData.length === 0) {
+          return (
+            <div className="h-[250px] flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <p className="text-lg mb-2">📊</p>
+                <p>No ISSB data available</p>
+                <p className="text-sm">Add climate and sustainability governance data</p>
+              </div>
+            </div>
+          );
+        }
+        
+        return (
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={issbData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-15} textAnchor="end" height={80} />
+                <YAxis />
+                <Tooltip formatter={(value, name) => [value, name]} />
+                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                  {issbData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      
       case "Waste Management":
         const wasteMetrics = normalized.filter(item => 
           item.category === 'environmental' && 
@@ -609,6 +705,16 @@ function Reports() {
                 <p className="text-lg mb-2">♻️</p>
                 <p>No waste management data available</p>
                 <p className="text-sm">Add waste data to see management breakdown</p>
+                <button
+                  onClick={() => {
+                    addSampleWasteData();
+                    refreshData();
+                    showToast('Sample waste data added!', 'success');
+                  }}
+                  className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                >
+                  ➕ Add Sample Waste Data
+                </button>
               </div>
             </div>
           );
@@ -638,145 +744,6 @@ function Reports() {
           </div>
         );
       
-      case "TCFD":
-        const tcfdMetrics = normalized.filter(item => 
-          item.category === 'governance' && 
-          (item.metric.includes('climate') || item.metric.includes('risk') || item.metric.includes('governance'))
-        );
-        
-        if (tcfdMetrics.length === 0) {
-          return (
-            <div className="h-[250px] flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <p className="text-lg mb-2">🌡️</p>
-                <p>No TCFD data available</p>
-                <p className="text-sm">Add climate-related governance data</p>
-              </div>
-            </div>
-          );
-        }
-        
-        const climateMetrics = tcfdMetrics.filter(m => m.metric.includes('climate') || m.metric.includes('Climate') || m.metric.includes('risk') || m.metric.includes('Risk'));
-        const scenarioMetrics = tcfdMetrics.filter(m => m.metric.includes('scenario') || m.metric.includes('Scenario'));
-        const governanceMetrics = tcfdMetrics.filter(m => m.metric.includes('governance') || m.metric.includes('Governance') || m.metric.includes('board') || m.metric.includes('Board'));
-        const targetMetrics = tcfdMetrics.filter(m => m.metric.includes('target') || m.metric.includes('Target') || m.metric.includes('metric') || m.metric.includes('Metric'));
-        
-        const tcfdData = [
-          { name: 'Climate Risk Assessment', value: climateMetrics.length > 0 ? Math.round(Math.min(100, climateMetrics.reduce((sum, m) => sum + m.value, 0) / climateMetrics.length)) : 0 },
-          { name: 'Scenario Analysis', value: scenarioMetrics.length > 0 ? Math.round(Math.min(100, scenarioMetrics.reduce((sum, m) => sum + m.value, 0) / scenarioMetrics.length)) : 0 },
-          { name: 'Governance', value: governanceMetrics.length > 0 ? Math.round(Math.min(100, governanceMetrics.reduce((sum, m) => sum + m.value, 0) / governanceMetrics.length)) : 0 },
-          { name: 'Metrics & Targets', value: targetMetrics.length > 0 ? Math.round(Math.min(100, targetMetrics.reduce((sum, m) => sum + m.value, 0) / targetMetrics.length)) : 0 }
-        ].filter(item => item.value > 0);
-        
-        return (
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={tcfdData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                <YAxis domain={[0, 100]} />
-                <Tooltip formatter={(value) => [`${value}%`, 'Compliance']} />
-                <Bar dataKey="value" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        );
-      
-      case "SASB":
-        const sasbEnvData = normalized.filter(item => item.category === 'environmental');
-        const sasbSocialData = normalized.filter(item => item.category === 'social');
-        
-        if (sasbEnvData.length === 0 && sasbSocialData.length === 0) {
-          return (
-            <div className="h-[250px] flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <p className="text-lg mb-2">📋</p>
-                <p>No SASB data available</p>
-                <p className="text-sm">Add industry-specific sustainability data</p>
-              </div>
-            </div>
-          );
-        }
-        
-        const sasbEnergyMetrics = sasbEnvData.filter(m => m.metric.includes('energy') || m.metric.includes('Energy'));
-        const sasbWaterMetrics = sasbEnvData.filter(m => m.metric.includes('water') || m.metric.includes('Water'));
-        const sasbWasteMetrics = sasbEnvData.filter(m => m.metric.includes('waste') || m.metric.includes('Waste'));
-        const sasbSafetyMetrics = sasbSocialData.filter(m => m.metric.includes('safety') || m.metric.includes('Safety') || m.metric.includes('health') || m.metric.includes('Health') || m.metric.includes('injury') || m.metric.includes('Injury'));
-        
-        const sasbData = [
-          { name: 'Energy Management', value: sasbEnergyMetrics.length > 0 ? Math.round(sasbEnergyMetrics.reduce((sum, m) => sum + m.value, 0) / sasbEnergyMetrics.length) : 0 },
-          { name: 'Water Management', value: sasbWaterMetrics.length > 0 ? Math.round(sasbWaterMetrics.reduce((sum, m) => sum + m.value, 0) / sasbWaterMetrics.length) : 0 },
-          { name: 'Waste Management', value: sasbWasteMetrics.length > 0 ? Math.round(sasbWasteMetrics.reduce((sum, m) => sum + m.value, 0) / sasbWasteMetrics.length) : 0 },
-          { name: 'Employee Health & Safety', value: sasbSafetyMetrics.length > 0 ? Math.round(sasbSafetyMetrics.reduce((sum, m) => sum + m.value, 0) / sasbSafetyMetrics.length) : 0 }
-        ].filter(item => item.value > 0);
-        
-        return (
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sasbData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                <YAxis domain={[0, 100]} />
-                <Tooltip formatter={(value) => [`${value}%`, 'Performance']} />
-                <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        );
-      
-      case "EU Taxonomy":
-        const taxonomyMetrics = normalized.filter(item => 
-          item.metric && (item.metric.includes('taxonomy') || item.metric.includes('eligible') || item.metric.includes('aligned'))
-        );
-        
-        if (taxonomyMetrics.length === 0) {
-          return (
-            <div className="h-[250px] flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <p className="text-lg mb-2">🇪🇺</p>
-                <p>No EU Taxonomy data available</p>
-                <p className="text-sm">Add taxonomy-eligible activity data</p>
-              </div>
-            </div>
-          );
-        }
-        
-        const eligibleMetrics = taxonomyMetrics.filter(m => m.metric.includes('eligible') || m.metric.includes('Eligible'));
-        const alignedMetrics = taxonomyMetrics.filter(m => m.metric.includes('aligned') || m.metric.includes('Aligned'));
-        
-        const eligibleActivities = eligibleMetrics.length > 0 ? Math.round(eligibleMetrics.reduce((sum, m) => sum + m.value, 0) / eligibleMetrics.length) : 0;
-        const alignedActivities = alignedMetrics.length > 0 ? Math.round(alignedMetrics.reduce((sum, m) => sum + m.value, 0) / alignedMetrics.length) : 0;
-        const nonEligible = Math.max(0, 100 - eligibleActivities - alignedActivities);
-        
-        const taxonomyData = [
-          { name: 'Eligible Activities', value: eligibleActivities },
-          { name: 'Aligned Activities', value: alignedActivities },
-          { name: 'Non-Eligible', value: nonEligible }
-        ].filter(item => item.value > 0);
-        
-        return (
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <Pie
-                  data={taxonomyData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  outerRadius={80}
-                  dataKey="value"
-                >
-                  {taxonomyData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={['#10b981', '#3b82f6', '#ef4444'][index]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => [`${value}%`, 'Revenue Share']} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        );
       
       default:
         const defaultData = chartData();
@@ -847,6 +814,27 @@ function Reports() {
         }
       }
       
+      // MERGE Advanced Data Entry data
+      try {
+        const advancedData = localStorage.getItem('advanced_esg_data');
+        if (advancedData) {
+          const parsed = JSON.parse(advancedData);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Convert advanced data format to standard format
+            const converted = parsed.map(item => ({
+              ...item,
+              companyName: item.companyName || localStorage.getItem('esg_company_name') || 'Company',
+              status: 'Submitted',
+              timestamp: item.timestamp || new Date().toISOString()
+            }));
+            localData = [...(localData || []), ...converted];
+            console.log('Merged advanced data:', converted.length, 'entries');
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to merge advanced data:', err);
+      }
+      
       if (localData && localData.length > 0) {
         // Normalize and dedupe stored entries before using them
         const convertedData = dedupeEntries(localData.map(item => ({
@@ -865,6 +853,51 @@ function Reports() {
         const sasbCompliance = validateFrameworkCompliance(normalized, 'SASB');
         const tcfdCompliance = validateFrameworkCompliance(normalized, 'TCFD');
         const brsrCompliance = validateFrameworkCompliance(normalized, 'BRSR');
+        
+        // Check if this is mining sector data - check both raw and normalized data
+        const isMining = convertedData.some(item => 
+          (item.sector && item.sector.toLowerCase().includes('mining')) || 
+          (item.region && item.region.toLowerCase().includes('zimbabwe'))
+        );
+        
+        console.log('Mining detection:', { isMining, sampleData: convertedData.slice(0, 2) });
+        
+        // Always show mining compliance panel
+        if (isMining) {
+          const miningData = {
+            environmental: {},
+            social: {},
+            governance: {}
+          };
+          
+          // Collect metrics from normalized data
+          normalized.forEach(item => {
+            if (item.category && item.metric && item.value) {
+              if (!miningData[item.category]) miningData[item.category] = {};
+              miningData[item.category][item.metric] = item.value;
+            }
+          });
+          
+          console.log('Mining data collected:', miningData);
+          const miningResult = validateMiningMetrics(miningData);
+          console.log('Mining compliance result:', miningResult);
+          setMiningCompliance(miningResult);
+        } else {
+          // Reset to empty state when no mining data
+          setMiningCompliance({
+            score: 0,
+            compliance: {
+              'gri-11': false,
+              'gri-303': false,
+              'gri-304': false,
+              'gri-403': false,
+              'gri-413': false,
+              'ifrs-s1': false,
+              'ifrs-s2': false
+            }
+          });
+        }
+        
         setComplianceSummary({ GRI: griCompliance, SASB: sasbCompliance, TCFD: tcfdCompliance, BRSR: brsrCompliance });
         
         if (normalized.length > 0) {
@@ -946,7 +979,8 @@ function Reports() {
         (item.companyName && item.companyName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.metric && item.metric.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase()));
-      return matchesStatus && matchesSearch;
+      const matchesYear = historyYearFilter === 'all' || item.year === parseInt(historyYearFilter);
+      return matchesStatus && matchesSearch && matchesYear;
     });
 
     return filtered.sort((a, b) => {
@@ -1511,8 +1545,11 @@ function Reports() {
     return converted;
   };
 
-  const canViewReports = RBACManager.hasPermission(currentUser.role, PERMISSIONS.VIEW_REPORTS);
-  const canExportReports = RBACManager.hasPermission(currentUser.role, PERMISSIONS.EXPORT_DATA);
+  const canViewReports = hasPermission(currentUser.role, PERMISSIONS.VIEW_REPORTS);
+  const canExportReports = hasPermission(currentUser.role, PERMISSIONS.EXPORT_REPORTS);
+  const canPrintReports = hasPermission(currentUser.role, PERMISSIONS.PRINT_REPORTS);
+  const canDownloadReports = hasPermission(currentUser.role, PERMISSIONS.DOWNLOAD_REPORTS);
+  const canDeleteData = hasPermission(currentUser.role, PERMISSIONS.DELETE_DATA);
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme.bg.gradient}`}>
@@ -1529,21 +1566,21 @@ function Reports() {
           { label: 'Reports', href: '/reports', active: true }
         ]}
         actions={[
-            {
+            ...(canDownloadReports ? [{
               label: 'Save JSON',
               onClick: async () => { 
                 await handleSaveFullReport();
               },
               variant: 'outline'
-            },
-            {
+            }] : []),
+            ...(canDownloadReports ? [{
               label: 'Save PDF',
               onClick: async () => { 
                 setShowPreview(false);
                 await exportPDF();
               },
               variant: 'outline'
-            },
+            }] : []),
           {
             label: 'Refresh Data',
             onClick: () => {
@@ -1613,12 +1650,20 @@ function Reports() {
                       📄 Framework Reports
                     </button>
                     <button
-                      onClick={clearAllData}
-                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
-                      title="Clear all ESG data"
+                      onClick={() => setShowFrameworkHub(true)}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm whitespace-nowrap"
                     >
-                      🗑️ Clear Data
+                      🌐 Framework Hub
                     </button>
+                    {canDeleteData && (
+                      <button
+                        onClick={clearAllData}
+                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                        title="Clear all ESG data"
+                      >
+                        🗑️ Clear Data
+                      </button>
+                    )}
                   </div>
                 )}
               <span className={`px-2 py-1 rounded text-xs ${
@@ -2071,14 +2116,12 @@ function Reports() {
             </div>
             <div className="space-y-3">
               {[
-                { type: "SEBI BRSR", description: "Mandatory ESG report for listed Indian companies" },
                 { type: "GRI Standards", description: "Global Reporting Initiative based template" },
+                { type: "ISSB Standards", description: "IFRS S1 & S2 sustainability disclosures" },
+                { type: "IFRS S1/S2", description: "Climate & sustainability financial disclosures" },
                 { type: "Carbon Report", description: "Tracks CO2 emissions and carbon footprint" },
                 { type: "Water Usage", description: "Analyzes total water consumption" },
-                { type: "Waste Management", description: "Details waste segregation and disposal" },
-                { type: "TCFD", description: "Climate-related financial disclosures framework" },
-                { type: "SASB", description: "Industry-specific sustainability standards" },
-                { type: "EU Taxonomy", description: "EU sustainable finance classification" }
+                { type: "Waste Management", description: "Details waste segregation and disposal" }
               ].map((report, i) => (
                 <div
                   key={i}
@@ -2104,9 +2147,7 @@ function Reports() {
                     <span className={`text-xs px-2 py-1 rounded-full ${
                       isDark ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-800'
                     }`}>
-                      {report.type.includes('SEBI') ? 'Regulatory' : 
-                       report.type.includes('GRI') ? 'International' :
-                       report.type.includes('TCFD') ? 'Climate' :
+                      {report.type.includes('GRI') ? 'International' :
                        report.type.includes('SASB') ? 'Industry' :
                        report.type.includes('EU') ? 'EU Regulatory' : 'Operational'}
                     </span>
@@ -2145,6 +2186,85 @@ function Reports() {
         <hr className="my-4" />
       </div>
 
+        {/* Mining Sector Compliance - Always visible with empty states */}
+        {true && (
+          <div className={`p-6 rounded-xl shadow-lg mb-8 ${theme.bg.card}`}>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className={`text-2xl font-bold ${theme.text.primary}`}>⛏️ Mining Sector ESG Compliance</h2>
+                <p className={`text-sm ${theme.text.secondary}`}>Zimbabwe Mining Requirements & International Standards</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-lg px-3 py-1 rounded-full ${
+                  (miningCompliance.score || 0) >= 80 ? 'bg-green-100 text-green-800' :
+                  (miningCompliance.score || 0) >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {miningCompliance.score || 0}% Compliant
+                </span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+              {Object.entries(miningCompliance.compliance || {}).map(([standard, isCompliant]) => (
+                <div key={standard} className={`p-4 rounded-lg text-center ${
+                  isCompliant ? 'bg-green-50 border-2 border-green-500' : 'bg-gray-50 border-2 border-gray-300'
+                }`}>
+                  <div className="text-2xl mb-2">{isCompliant ? '✅' : '⚪'}</div>
+                  <div className={`text-xs font-bold ${
+                    isCompliant ? 'text-green-800' : 'text-gray-600'
+                  }`}>
+                    {standard.toUpperCase()}
+                  </div>
+                  <div className={`text-xs mt-1 ${
+                    isCompliant ? 'text-green-600' : 'text-gray-500'
+                  }`}>
+                    {isCompliant ? 'Compliant' : 'Empty'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className={`mt-6 p-4 rounded-lg ${theme.bg.subtle}`}>
+              <h3 className={`font-semibold ${theme.text.primary} mb-3`}>📋 Zimbabwe Mining Requirements</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Environmental:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.environmental.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Social:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.social.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Governance:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.governance.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Investor Focus:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.investorFocus.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Framework Compliance Summary */}
         <FrameworkComplianceSummary complianceData={complianceSummary} />
 
@@ -2175,6 +2295,19 @@ function Reports() {
                 <option value="Pending">Pending</option>
                 <option value="Submitted">Submitted</option>
                 <option value="Failed">Failed</option>
+              </select>
+              
+              <select
+                value={historyYearFilter}
+                onChange={(e) => setHistoryYearFilter(e.target.value)}
+                className={`border rounded-lg px-3 py-2 text-sm ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+              >
+                <option value="all">All Years</option>
+                {[...new Set(normalizeData(data).map(item => item.year).filter(year => year && !isNaN(year)))]
+                  .sort((a, b) => b - a)
+                  .map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
               </select>
               
               <Button
@@ -2345,13 +2478,15 @@ function Reports() {
                           >
                             <span className="text-blue-600">👁️</span>
                           </button>
-                          <button
-                            onClick={() => deleteItem(idx)}
-                            className={`p-2 rounded-lg transition-colors duration-200 ${theme.hover.subtle}`}
-                            title="Delete"
-                          >
-                            <span className="text-red-600">🗑️</span>
-                          </button>
+                          {canDeleteData && (
+                            <button
+                              onClick={() => deleteItem(idx)}
+                              className={`p-2 rounded-lg transition-colors duration-200 ${theme.hover.subtle}`}
+                              title="Delete"
+                            >
+                              <span className="text-red-600">🗑️</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2382,6 +2517,11 @@ function Reports() {
             data={data}
             onClose={() => setShowCustomReportBuilder(false)}
           />
+        )}
+
+        {/* Reporting Framework Hub */}
+        {showFrameworkHub && (
+          <ReportingFrameworkHub onClose={() => setShowFrameworkHub(false)} />
         )}
 
         {/* Framework Compliance Modal */}
@@ -2415,91 +2555,334 @@ function Reports() {
                 />
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Filters and Bulk Actions */}
+                  <div className="flex flex-wrap gap-3 items-center justify-between">
+                    <div className="flex gap-2 flex-wrap">
+                      <select
+                        value={frameworkFilter}
+                        onChange={(e) => setFrameworkFilter(e.target.value)}
+                        className={`px-3 py-2 border rounded-lg text-sm ${theme.bg.input} ${theme.border.input}`}
+                      >
+                        <option value="all">All Frameworks</option>
+                        <option value="high">High Compliance (≥80%)</option>
+                        <option value="medium">Medium Compliance (60-79%)</option>
+                        <option value="low">Low Compliance (&lt;60%)</option>
+                        <option value="climate">Climate-Focused</option>
+                        <option value="international">International</option>
+                      </select>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className={`px-3 py-2 border rounded-lg text-sm ${theme.bg.input} ${theme.border.input}`}
+                      >
+                        <option value="compliance">Sort by Compliance</option>
+                        <option value="name">Sort by Name</option>
+                        <option value="type">Sort by Type</option>
+                      </select>
+                      <div className="flex border rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => setViewMode('grid')}
+                          className={`px-3 py-2 text-sm ${viewMode === 'grid' ? 'bg-blue-500 text-white' : theme.bg.input}`}
+                        >
+                          📋 Grid
+                        </button>
+                        <button
+                          onClick={() => setViewMode('list')}
+                          className={`px-3 py-2 text-sm ${viewMode === 'list' ? 'bg-blue-500 text-white' : theme.bg.input}`}
+                        >
+                          📝 List
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const allFrameworks = ['GRI Standards', 'SASB Standards', 'TCFD', 'BRSR', 'EU Taxonomy', 'ISSB S1/S2'];
+                          setSelectedFrameworks(selectedFrameworks.length === allFrameworks.length ? [] : allFrameworks);
+                        }}
+                      >
+                        {selectedFrameworks.length === 6 ? '☑️ Deselect All' : '☐ Select All'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => {
+                          if (selectedFrameworks.length === 0) {
+                            showToast('Select frameworks first', 'warning');
+                            return;
+                          }
+                          selectedFrameworks.forEach(name => {
+                            const normalizedData = normalizeData(data);
+                            const options = { companyName: data[0]?.companyName || 'Company', reportPeriod: new Date().getFullYear() };
+                            let pdf;
+                            switch(name) {
+                              case 'GRI Standards': pdf = generateGRIPDF(normalizedData, options); break;
+                              case 'SASB Standards': pdf = generateSASBPDF(normalizedData, options); break;
+                              case 'TCFD': pdf = generateTCFDPDF(normalizedData, options); break;
+                              case 'BRSR': pdf = generateBRSRPDF(normalizedData, options); break;
+                              case 'EU Taxonomy': pdf = generateEUTaxonomyPDF(normalizedData, options); break;
+                            }
+                            if (pdf) pdf.save(`${name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
+                          });
+                          showToast(`Generating ${selectedFrameworks.length} reports...`, 'success');
+                        }}
+                        disabled={selectedFrameworks.length === 0}
+                      >
+                        📦 Generate ({selectedFrameworks.length})
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
                     {[
-                      { name: 'GRI Standards', desc: 'Global Reporting Initiative', icon: '🌍' },
-                      { name: 'SASB Standards', desc: 'Sustainability Accounting Standards', icon: '📊' },
-                      { name: 'TCFD Report', desc: 'Climate-related Financial Disclosures', icon: '🌡️' },
-                      { name: 'SEBI BRSR', desc: 'Business Responsibility Report', icon: '🇮🇳' }
-                    ].map((framework, idx) => (
-                      <div key={idx} className={`p-4 border rounded-lg ${theme.border.primary} hover:${theme.bg.subtle} cursor-pointer`}>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">{framework.icon}</span>
-                          <div>
-                            <h4 className={`font-semibold ${theme.text.primary}`}>{framework.name}</h4>
-                            <p className={`text-sm ${theme.text.secondary}`}>{framework.desc}</p>
+                      { name: 'GRI Standards', desc: 'Global Reporting Initiative', icon: '🌍', compliance: complianceSummary.GRI?.score || 0, type: 'international' },
+                      { name: 'SASB Standards', desc: 'Sustainability Accounting Standards', icon: '📊', compliance: complianceSummary.SASB?.score || 0, type: 'international' },
+                      { name: 'TCFD', desc: 'Task Force on Climate-related Disclosures', icon: '🌡️', compliance: complianceSummary.TCFD?.score || 0, type: 'climate' },
+                      { name: 'BRSR', desc: 'Business Responsibility & Sustainability', icon: '🇮🇳', compliance: complianceSummary.BRSR?.score || 0, type: 'regional' },
+                      { name: 'EU Taxonomy', desc: 'EU Sustainable Finance Taxonomy', icon: '🇪🇺', compliance: 0, type: 'regional' },
+                      { name: 'ISSB S1/S2', desc: 'IFRS Sustainability Standards', icon: '📈', compliance: 0, type: 'climate' }
+                    ].sort((a, b) => {
+                      if (sortBy === 'compliance') return b.compliance - a.compliance;
+                      if (sortBy === 'name') return a.name.localeCompare(b.name);
+                      if (sortBy === 'type') return a.type.localeCompare(b.type);
+                      return 0;
+                    }).filter(f => {
+                      if (frameworkFilter === 'all') return true;
+                      if (frameworkFilter === 'high') return f.compliance >= 80;
+                      if (frameworkFilter === 'medium') return f.compliance >= 60 && f.compliance < 80;
+                      if (frameworkFilter === 'low') return f.compliance < 60;
+                      if (frameworkFilter === 'climate') return f.type === 'climate';
+                      if (frameworkFilter === 'international') return f.type === 'international';
+                      return true;
+                    }).map((framework, idx) => {
+                      const isSelected = selectedFrameworks.includes(framework.name);
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`p-5 border-2 rounded-xl transition-all duration-300 cursor-pointer transform hover:scale-105 ${
+                            isSelected ? 'border-blue-500 bg-blue-50 shadow-xl ring-2 ring-blue-200' : `${theme.border.primary} hover:border-blue-300`
+                          } hover:shadow-2xl`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedFrameworks(selectedFrameworks.filter(f => f !== framework.name));
+                            } else {
+                              setSelectedFrameworks([...selectedFrameworks, framework.name]);
+                            }
+                          }}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            const normalizedData = normalizeData(data);
+                            const options = { companyName: data[0]?.companyName || 'Company', reportPeriod: new Date().getFullYear() };
+                            let pdf;
+                            switch(framework.name) {
+                              case 'GRI Standards': pdf = generateGRIPDF(normalizedData, options); break;
+                              case 'SASB Standards': pdf = generateSASBPDF(normalizedData, options); break;
+                              case 'TCFD': pdf = generateTCFDPDF(normalizedData, options); break;
+                              case 'BRSR': pdf = generateBRSRPDF(normalizedData, options); break;
+                              case 'EU Taxonomy': pdf = generateEUTaxonomyPDF(normalizedData, options); break;
+                            }
+                            if (pdf) {
+                              pdf.save(`${framework.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
+                              showToast(`${framework.name} generated`, 'success');
+                            }
+                          }}
+                        >
+                          <div className="flex items-start gap-3 mb-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="mt-1 w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="text-4xl">{framework.icon}</span>
+                                <div className="flex-1">
+                                  <h4 className={`font-bold text-lg ${theme.text.primary}`}>{framework.name}</h4>
+                                  <p className={`text-sm ${theme.text.secondary} mt-1`}>{framework.desc}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                  framework.type === 'international' ? 'bg-blue-100 text-blue-700' :
+                                  framework.type === 'climate' ? 'bg-green-100 text-green-700' :
+                                  'bg-purple-100 text-purple-700'
+                                }`}>
+                                  {framework.type.charAt(0).toUpperCase() + framework.type.slice(1)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="mb-4">
+                            <div className="flex justify-between items-center text-sm mb-2">
+                              <span className={`font-medium ${theme.text.secondary}`}>Compliance Score</span>
+                              <span className={`font-bold text-lg ${
+                                framework.compliance >= 80 ? 'text-green-600' :
+                                framework.compliance >= 60 ? 'text-yellow-600' : 'text-red-600'
+                              }`}>{framework.compliance}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                              <div 
+                                className={`h-3 rounded-full transition-all duration-500 ${
+                                  framework.compliance >= 80 ? 'bg-gradient-to-r from-green-400 to-green-600' :
+                                  framework.compliance >= 60 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : 
+                                  'bg-gradient-to-r from-red-400 to-red-600'
+                                }`}
+                                style={{ width: `${framework.compliance}%` }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between text-xs mt-1 text-gray-500">
+                              <span>0%</span>
+                              <span>100%</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const normalizedData = normalizeData(data);
+                                const options = { companyName: data[0]?.companyName || 'Company', reportPeriod: new Date().getFullYear() };
+                                let pdf;
+                                switch(framework.name) {
+                                  case 'GRI Standards': pdf = generateGRIPDF(normalizedData, options); break;
+                                  case 'SASB Standards': pdf = generateSASBPDF(normalizedData, options); break;
+                                  case 'TCFD': pdf = generateTCFDPDF(normalizedData, options); break;
+                                  case 'BRSR': pdf = generateBRSRPDF(normalizedData, options); break;
+                                  case 'EU Taxonomy': pdf = generateEUTaxonomyPDF(normalizedData, options); break;
+                                  default: pdf = generateGRIPDF(normalizedData, options);
+                                }
+                                const filename = `${framework.name.replace(/\s+/g, '-')}-Report-${new Date().toISOString().split('T')[0]}.pdf`;
+                                pdf.save(filename);
+                                showToast(`${framework.name} report generated`, 'success');
+                              }}
+                              className="flex-1"
+                            >
+                              📥 Download PDF
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedReport(framework.name);
+                                setShowFrameworkReports(false);
+                                showToast(`Viewing ${framework.name} template`, 'info');
+                              }}
+                              className="flex-1"
+                            >
+                              👁️ Preview
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex gap-2 mt-3">
-                          <Button 
-                            size="sm" 
-                            variant="primary"
-                            onClick={() => {
-                              const normalizedData = normalizeData(data);
-                              const options = { companyName: data[0]?.companyName || 'Company', reportPeriod: new Date().getFullYear() };
-                              
-                              let pdf;
-                              switch(framework.name) {
-                                case 'GRI Standards':
-                                  pdf = generateGRIPDF(normalizedData, options);
-                                  break;
-                                case 'SASB Standards':
-                                  pdf = generateSASBPDF(normalizedData, options);
-                                  break;
-                                case 'TCFD Report':
-                                  pdf = generateTCFDPDF(normalizedData, options);
-                                  break;
-                                case 'SEBI BRSR':
-                                  pdf = generateBRSRPDF(normalizedData, options);
-                                  break;
-                                default:
-                                  pdf = generateGRIPDF(normalizedData, options);
-                              }
-                              
-                              const filename = `${framework.name.replace(/\s+/g, '-')}-Report-${new Date().toISOString().split('T')[0]}.pdf`;
-                              pdf.save(filename);
-                              showToast(`${framework.name} report generated`, 'success');
-                            }}
-                          >
-                            Generate PDF
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedReport(framework.name);
-                              showToast(`Viewing ${framework.name} template`, 'info');
-                            }}
-                          >
-                            Preview
-                          </Button>
-                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  <div className={`p-4 rounded-lg ${theme.bg.subtle} border-l-4 border-blue-500`}>
+                    <h4 className={`font-semibold ${theme.text.primary} mb-3`}>📋 Data Coverage Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className={`block ${theme.text.secondary} mb-1`}>Environmental</span>
+                        <span className="text-2xl font-bold text-green-600">{normalizeData(data).filter(d => d.category === 'environmental').length}</span>
+                        <span className={`block text-xs ${theme.text.muted}`}>metrics</span>
                       </div>
-                    ))}
+                      <div>
+                        <span className={`block ${theme.text.secondary} mb-1`}>Social</span>
+                        <span className="text-2xl font-bold text-blue-600">{normalizeData(data).filter(d => d.category === 'social').length}</span>
+                        <span className={`block text-xs ${theme.text.muted}`}>metrics</span>
+                      </div>
+                      <div>
+                        <span className={`block ${theme.text.secondary} mb-1`}>Governance</span>
+                        <span className="text-2xl font-bold text-purple-600">{normalizeData(data).filter(d => d.category === 'governance').length}</span>
+                        <span className={`block text-xs ${theme.text.muted}`}>metrics</span>
+                      </div>
+                      <div>
+                        <span className={`block ${theme.text.secondary} mb-1`}>Total Data Points</span>
+                        <span className="text-2xl font-bold text-gray-800">{normalizeData(data).length}</span>
+                        <span className={`block text-xs ${theme.text.muted}`}>entries</span>
+                      </div>
+                    </div>
                   </div>
                   
                   <div className={`p-4 rounded-lg ${theme.bg.subtle}`}>
-                    <h4 className={`font-semibold ${theme.text.primary} mb-2`}>📋 Data Summary</h4>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className={theme.text.secondary}>Environmental:</span>
-                        <span className="ml-2 font-medium">{data.filter(d => d.category === 'environmental').length} metrics</span>
-                      </div>
-                      <div>
-                        <span className={theme.text.secondary}>Social:</span>
-                        <span className="ml-2 font-medium">{data.filter(d => d.category === 'social').length} metrics</span>
-                      </div>
-                      <div>
-                        <span className={theme.text.secondary}>Governance:</span>
-                        <span className="ml-2 font-medium">{data.filter(d => d.category === 'governance').length} metrics</span>
-                      </div>
+                    <h4 className={`font-semibold ${theme.text.primary} mb-3`}>🎯 Smart Recommendations</h4>
+                    <div className="space-y-2 text-sm">
+                      {complianceSummary.GRI?.score >= 80 && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <span>✅</span>
+                          <span>GRI Standards: Ready for external reporting</span>
+                        </div>
+                      )}
+                      {complianceSummary.SASB?.score >= 60 && complianceSummary.SASB?.score < 80 && (
+                        <div className="flex items-center gap-2 text-yellow-600">
+                          <span>⚠️</span>
+                          <span>SASB Standards: Add industry-specific metrics for full compliance</span>
+                        </div>
+                      )}
+                      {complianceSummary.TCFD?.score < 60 && (
+                        <div className="flex items-center gap-2 text-red-600">
+                          <span>❌</span>
+                          <span>TCFD: Requires climate risk assessment and scenario analysis</span>
+                        </div>
+                      )}
+                      {normalizeData(data).filter(d => d.category === 'environmental').length === 0 && (
+                        <div className="flex items-center gap-2 text-orange-600">
+                          <span>⚡</span>
+                          <span>Add environmental data to unlock climate-focused frameworks</span>
+                        </div>
+                      )}
+                      {selectedFrameworks.length > 0 && (
+                        <div className="flex items-center gap-2 text-blue-600">
+                          <span>📌</span>
+                          <span>{selectedFrameworks.length} framework(s) selected for batch generation</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
               )}
               
-              <div className="flex gap-3 pt-4">
-                <Button variant="outline" onClick={() => setShowFrameworkReports(false)}>Close</Button>
+              <div className="flex justify-between items-center pt-4">
+                <div className={`text-sm ${theme.text.secondary}`}>
+                  {selectedFrameworks.length > 0 && (
+                    <span>📌 {selectedFrameworks.length} selected | </span>
+                  )}
+                  <span>Double-click card for quick PDF generation</span>
+                </div>
+                <div className="flex gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      const csv = 'Framework,Compliance,Type\n' + 
+                        ['GRI Standards', 'SASB Standards', 'TCFD', 'BRSR', 'EU Taxonomy', 'ISSB S1/S2']
+                          .map(name => {
+                            const f = [{ name: 'GRI Standards', compliance: complianceSummary.GRI?.score || 0, type: 'international' },
+                              { name: 'SASB Standards', compliance: complianceSummary.SASB?.score || 0, type: 'international' },
+                              { name: 'TCFD', compliance: complianceSummary.TCFD?.score || 0, type: 'climate' },
+                              { name: 'BRSR', compliance: complianceSummary.BRSR?.score || 0, type: 'regional' },
+                              { name: 'EU Taxonomy', compliance: 0, type: 'regional' },
+                              { name: 'ISSB S1/S2', compliance: 0, type: 'climate' }].find(x => x.name === name);
+                            return `${f.name},${f.compliance}%,${f.type}`;
+                          }).join('\n');
+                      const blob = new Blob([csv], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `Framework-Compliance-${new Date().toISOString().split('T')[0]}.csv`;
+                      a.click();
+                      showToast('Compliance data exported', 'success');
+                    }}
+                  >
+                    📊 Export CSV
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowFrameworkReports(false)}>Close</Button>
+                </div>
               </div>
             </div>
           </Modal>
@@ -2847,36 +3230,44 @@ function Reports() {
         </Modal>
       )}
 
-      {/* Save / Print footer */}
-      <div className="fixed bottom-4 right-6 left-6 md:left-auto md:right-6 z-50">
-        <div className="max-w-7xl mx-auto flex justify-end gap-3">
-          <button
-            onClick={() => handleSaveFullReport()}
-            className={`px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 shadow-lg`}
-            disabled={isGenerating}
-            title="Save Full Report (JSON)"
-          >
-            {isGenerating ? 'Saving...' : '💾 Save JSON'}
-          </button>
+      {/* Save / Print footer - Only for Supervisor and Super Admin */}
+      {(canDownloadReports || canPrintReports) && (
+        <div className="fixed bottom-4 right-6 left-6 md:left-auto md:right-6 z-50">
+          <div className="max-w-7xl mx-auto flex justify-end gap-3">
+            {canDownloadReports && (
+              <button
+                onClick={() => handleSaveFullReport()}
+                className={`px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 shadow-lg`}
+                disabled={isGenerating}
+                title="Save Full Report (JSON)"
+              >
+                {isGenerating ? 'Saving...' : '💾 Save JSON'}
+              </button>
+            )}
 
-          <button
-            onClick={() => exportPDF()}
-            className={`px-4 py-2 rounded-lg bg-gray-50 text-gray-800 text-sm border hover:bg-gray-100 shadow-lg`}
-            disabled={isGenerating}
-            title="Save Full Report (PDF)"
-          >
-            📄 Save PDF
-          </button>
+            {canDownloadReports && (
+              <button
+                onClick={() => exportPDF()}
+                className={`px-4 py-2 rounded-lg bg-gray-50 text-gray-800 text-sm border hover:bg-gray-100 shadow-lg`}
+                disabled={isGenerating}
+                title="Save Full Report (PDF)"
+              >
+                📄 Save PDF
+              </button>
+            )}
 
-          <button
-            onClick={() => handlePrintReport()}
-            className={`px-4 py-2 rounded-lg bg-white text-gray-800 text-sm border hover:bg-gray-100 shadow-lg`}
-            title="Print Report"
-          >
-            🖨️ Print
-          </button>
+            {canPrintReports && (
+              <button
+                onClick={() => handlePrintReport()}
+                className={`px-4 py-2 rounded-lg bg-white text-gray-800 text-sm border hover:bg-gray-100 shadow-lg`}
+                title="Print Report"
+              >
+                🖨️ Print
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

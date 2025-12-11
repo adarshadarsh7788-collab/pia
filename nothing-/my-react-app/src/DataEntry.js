@@ -6,22 +6,43 @@ import ModuleAPI from "./services/moduleAPI";
 import { ESG_FRAMEWORKS, STANDARD_METRICS } from "./utils/esgFrameworks";
 import DataValidation from "./utils/dataValidation";
 import AuditTrail from "./utils/AuditTrail";
+import { GRI_TEMPLATES, getTemplateFields, validateTemplateCompleteness } from "./utils/griTemplates";
+import { performFullValidation } from "./utils/advancedValidation";
 import { useTheme } from "./contexts/ThemeContext";
 import { getThemeClasses } from "./utils/themeUtils";
 import ProfessionalHeader from "./components/ProfessionalHeader";
 import { Alert, Button, Toast } from "./components/ProfessionalUX";
-import EnhancedDataEntry from "./modules/EnhancedDataEntry";
+import UnifiedAdvancedEntry from "./modules/UnifiedAdvancedEntry";
+import SiteHierarchyManager from "./modules/SiteHierarchyManager";
+import { getUserRole, hasPermission, PERMISSIONS, USER_ROLES } from "./utils/rbac";
+import AuditTrailViewer from "./components/AuditTrailViewer";
+import ApprovalWorkflow from "./components/ApprovalWorkflow";
+import EvidenceUploader from "./components/EvidenceUploader";
 
 function DataEntry() {
   const { isDark } = useTheme();
   const theme = getThemeClasses(isDark);
+  const userRole = getUserRole();
+  const canAdd = hasPermission(userRole, PERMISSIONS.ADD_DATA);
+  const canEdit = hasPermission(userRole, PERMISSIONS.EDIT_DATA);
+  const canDelete = hasPermission(userRole, PERMISSIONS.DELETE_DATA);
+  const canAuthorize = hasPermission(userRole, PERMISSIONS.AUTHORIZE_DATA);
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState(new Set());
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [frameworkCompliance, setFrameworkCompliance] = useState({});
   const [toast, setToast] = useState(null);
-  const [showEnhancedEntry, setShowEnhancedEntry] = useState(false);
+  const [showAdvancedEntry, setShowAdvancedEntry] = useState(false);
+  const [selectedGRITemplate, setSelectedGRITemplate] = useState(null);
+  const [templateCompleteness, setTemplateCompleteness] = useState({});
+  const [showSiteManager, setShowSiteManager] = useState(false);
+  const [selectedSite, setSelectedSite] = useState(null);
+  const [validationResults, setValidationResults] = useState(null);
+  const [showValidationPanel, setShowValidationPanel] = useState(false);
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [showEvidence, setShowEvidence] = useState(false);
 
   const steps = [
     { id: 1, title: "Company Information", icon: "🏢", description: "Basic company details" },
@@ -36,30 +57,39 @@ function DataEntry() {
       reportingYear: new Date().getFullYear(),
       sector: "",
       region: "",
-      reportingFramework: "GRI"
+      reportingFramework: "GRI",
+      siteId: null,
+      siteName: ""
     },
     environmental: {
-      scope1Emissions: "", // GRI-305-1
-      scope2Emissions: "", // GRI-305-2
-      scope3Emissions: "", // GRI-305-3
+      scope1Emissions: "", // GRI-305-1 / IFRS-S2
+      scope2Emissions: "", // GRI-305-2 / IFRS-S2
+      scope3Emissions: "", // GRI-305-3 / IFRS-S2
       energyConsumption: "", // GRI-302-1
       renewableEnergyPercentage: "", // GRI-302-1
-      waterWithdrawal: "", // GRI-303-3
-      wasteGenerated: "" // GRI-306-3
+      waterWithdrawal: "", // GRI-303-3 (Water Stewardship)
+      waterDischarge: "", // GRI-303-4 (Mining)
+      wasteGenerated: "", // GRI-306-3
+      tailingsProduced: "", // GRI-11 (Mining Tailings)
+      landRehabilitated: "", // GRI-11 (Mining Land Use)
+      biodiversityImpact: "" // GRI-304 (Biodiversity)
     },
     social: {
       totalEmployees: "", // GRI-2-7
       femaleEmployeesPercentage: "", // SASB-HC-DI-330a.1
-      lostTimeInjuryRate: "", // SASB-RT-CH-320a.1
+      lostTimeInjuryRate: "", // GRI-403-9 (Mining Safety)
+      fatalityRate: "", // GRI-403-9 (Mining Critical)
       trainingHoursPerEmployee: "", // SASB-HC-HM-330a.2
-      communityInvestment: "", // SASB-FB-PF-410a.1
+      communityInvestment: "", // GRI-413 (Local Communities)
+      localEmploymentPercentage: "", // GRI-413 (Mining)
+      communityGrievances: "", // GRI-413 (Mining)
       employeeTurnoverRate: "", // SASB-HC-HM-330a.1
-      safetyTrainingHours: "", // SASB-RT-CH-320a.2
+      safetyTrainingHours: "", // GRI-403 (OHS)
       diversityTrainingCompletion: "" // SASB-HC-DI-330a.2
     },
     governance: {
       boardSize: "", // GRI-2-9
-      independentDirectorsPercentage: "", // GRI-2-9
+      independentDirectorsPercentage: "", // GRI-2-9 / IFRS-S1
       femaleDirectorsPercentage: "", // GRI-405-1
       ethicsTrainingCompletion: "", // SASB-FN-CB-510a.2
       corruptionIncidents: "", // GRI-205-3
@@ -67,7 +97,9 @@ function DataEntry() {
       cybersecurityInvestment: "", // SASB-TC-SI-230a.3
       supplierESGAssessments: "", // SASB-CG-MR-430a.1
       antiCorruptionPolicies: "", // SASB-FN-CB-510a.1
-      dataPrivacyPolicies: "" // SASB-TC-SI-220a.1
+      dataPrivacyPolicies: "", // SASB-TC-SI-220a.1
+      climateRiskDisclosure: "", // IFRS-S2 (Climate Risk)
+      sustainabilityGovernance: "" // IFRS-S1 (Governance)
     }
   });
 
@@ -146,6 +178,24 @@ function DataEntry() {
         return;
       }
 
+      // Perform advanced validation
+      const validation = performFullValidation(formData);
+      setValidationResults(validation);
+
+      if (validation.summary.totalCritical > 0) {
+        showToast(`${validation.summary.totalCritical} critical issues found. Please review.`, 'error');
+        setShowValidationPanel(true);
+        return;
+      }
+
+      if (validation.summary.totalErrors > 0) {
+        const proceed = window.confirm(`${validation.summary.totalErrors} validation errors found. Continue anyway?`);
+        if (!proceed) {
+          setShowValidationPanel(true);
+          return;
+        }
+      }
+
       setIsSaving(true);
       
       // Prepare data for localStorage (simplified format)
@@ -155,6 +205,9 @@ function DataEntry() {
         sector: formData.companyInfo.sector,
         region: formData.companyInfo.region,
         reportingYear: formData.companyInfo.reportingYear,
+        siteId: selectedSite?.id || null,
+        siteName: selectedSite?.name || null,
+        siteType: selectedSite?.type || null,
         environmental: formData.environmental,
         social: formData.social,
         governance: formData.governance,
@@ -166,6 +219,34 @@ function DataEntry() {
       // Save to database via ModuleAPI
       const currentUser = localStorage.getItem('currentUser') || 'admin@esgenius.com';
       const companyId = currentUser || '1';
+      const userRole = getUserRole();
+      
+      // Create approval workflow for data_entry role
+      if (userRole === USER_ROLES.DATA_ENTRY) {
+        const AuditSystem = require('./utils/auditSystem').default;
+        const workflowId = AuditSystem.createApprovalWorkflow(
+          submissionData.id,
+          'ESG Data Entry',
+          currentUser
+        );
+        
+        // Create notification for supervisor
+        const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+        alerts.unshift({
+          id: Date.now(),
+          type: 'info',
+          title: 'New Data Pending Approval',
+          message: `${currentUser} submitted ESG data for approval`,
+          category: 'Approval',
+          timestamp: new Date().toISOString(),
+          read: false,
+          workflowId: workflowId.id
+        });
+        localStorage.setItem('recentAlerts', JSON.stringify(alerts));
+        
+        submissionData.status = 'Pending Approval';
+        submissionData.workflowId = workflowId.id;
+      }
       try {
         // Save environmental data
         if (formData.environmental.scope1Emissions) {
@@ -216,7 +297,12 @@ function DataEntry() {
       }
       
       setCompletedSteps(prev => new Set([...prev, 5]));
-      showToast("Assessment submitted successfully!", 'success');
+      
+      if (userRole === USER_ROLES.DATA_ENTRY) {
+        showToast("Assessment submitted for approval!", 'success');
+      } else {
+        showToast("Assessment submitted successfully!", 'success');
+      }
       
       // Navigate to reports after a short delay
       setTimeout(() => {
@@ -492,20 +578,31 @@ function DataEntry() {
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme.bg.gradient}`}>
       <ProfessionalHeader 
-        title="ESG Data Entry Wizard"
-        subtitle="Step-by-step ESG assessment and data collection"
         onLogout={handleLogout}
-        currentUser="admin@esgenius.com"
-        showBreadcrumb={true}
-        breadcrumbItems={[
-          { label: 'Dashboard', href: '/' },
-          { label: 'Data Entry', href: '/data-entry', active: true }
-        ]}
         actions={[
           {
-            label: 'Enhanced Forms',
-            onClick: () => setShowEnhancedEntry(true),
-            variant: 'primary',
+            label: 'Audit Trail',
+            onClick: () => setShowAuditTrail(true),
+            icon: '📋'
+          },
+          {
+            label: 'Approvals',
+            onClick: () => setShowApprovals(true),
+            icon: '✅'
+          },
+          {
+            label: 'Evidence',
+            onClick: () => setShowEvidence(true),
+            icon: '📎'
+          },
+          {
+            label: 'Site Manager',
+            onClick: () => setShowSiteManager(true),
+            icon: '🏢'
+          },
+          {
+            label: 'Advanced Data Entry',
+            onClick: () => setShowAdvancedEntry(true),
             icon: '🚀'
           }
         ]}
@@ -622,6 +719,45 @@ function DataEntry() {
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Company name is auto-filled for all entries. Click Edit to change.</p>
               </div>
+              <div className="md:col-span-2">
+                <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Site/Business Unit</label>
+                <div className="flex gap-2">
+                  <div className={`flex-1 border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input}`}>
+                    {selectedSite ? (
+                      <div>
+                        <span className="font-medium">{selectedSite.name}</span>
+                        <span className={`text-xs ${theme.text.muted} ml-2`}>({selectedSite.type})</span>
+                      </div>
+                    ) : (
+                      <span className={theme.text.muted}>No site selected (Company-level)</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSiteManager(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm"
+                  >
+                    {selectedSite ? '✏️ Change' : '➕ Select Site'}
+                  </button>
+                  {selectedSite && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSite(null);
+                        setFormData(prev => ({
+                          ...prev,
+                          companyInfo: { ...prev.companyInfo, siteId: null, siteName: '' }
+                        }));
+                        showToast('Switched to company-level reporting', 'info');
+                      }}
+                      className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded-md text-sm"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Select a site/business unit for site-level reporting, or leave empty for company-level.</p>
+              </div>
               <div>
                 <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Reporting Year}'}</label>
                 <input
@@ -641,13 +777,15 @@ function DataEntry() {
                   required
                 >
                   <option value="">Select sector</option>
-                  <option value="technology">Technology</option>
-                  <option value="financial">Financial Services</option>
+                  <option value="mining">Mining & Extractives</option>
                   <option value="healthcare">Healthcare</option>
                   <option value="manufacturing">Manufacturing</option>
-                  <option value="energy">Energy</option>
-                  <option value="retail">Retail</option>
-                  <option value="other">Other</option>
+                  <option value="technology">Technology & IT Services</option>
+                  <option value="financial">Financial Services & Banking</option>
+                  <option value="retail">Retail & Consumer Goods</option>
+                  <option value="telecommunications">Telecommunications</option>
+                  <option value="real_estate">Real Estate & Property</option>
+                  <option value="hospitality">Hospitality & Tourism</option>
                 </select>
               </div>
               <div>
@@ -659,11 +797,13 @@ function DataEntry() {
                   required
                 >
                   <option value="">Select region</option>
+                  <option value="africa">Africa</option>
+                  <option value="zimbabwe">Zimbabwe</option>
+                  <option value="southern_africa">Southern Africa</option>
                   <option value="north_america">North America</option>
                   <option value="europe">Europe</option>
                   <option value="asia_pacific">Asia Pacific</option>
                   <option value="latin_america">Latin America</option>
-                  <option value="africa">Africa</option>
                   <option value="middle_east">Middle East</option>
                 </select>
               </div>
@@ -716,82 +856,106 @@ function DataEntry() {
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className={`text-2xl font-bold ${theme.text.primary} mb-2`}>🌱 Environmental Metrics</h3>
-                <p className={`${theme.text.secondary}`}>Core environmental metrics following GRI standards</p>
+                <h3 className={`text-2xl font-bold ${theme.text.primary} mb-2`}>🌱 Advanced Environmental Metrics</h3>
+                <p className={`${theme.text.secondary}`}>Comprehensive environmental data with mining-specific metrics, ISSB S2 climate disclosures, and biodiversity tracking</p>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedEntry(true)}
+                  className="mt-3 px-4 py-2 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg hover:shadow-lg transition-all"
+                >
+                  🚀 Open Advanced Data Entry
+                </button>
               </div>
               <div className={`p-6 rounded-lg ${theme.bg.subtle}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Scope 1 Emissions (tCO2e)}'} <span className="text-xs text-blue-600">GRI-305-1</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Mine Tailings Produced (tonnes) <span className="text-xs text-blue-600">GRI-11</span></label>
+                    <input
+                      type="number"
+                      value={formData.environmental.tailingsProduced}
+                      onChange={(e) => handleChange('environmental', 'tailingsProduced', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="50000"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Total tailings from mining operations</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Water Discharge (m³) <span className="text-xs text-blue-600">GRI-303-4</span></label>
+                    <input
+                      type="number"
+                      value={formData.environmental.waterDischarge}
+                      onChange={(e) => handleChange('environmental', 'waterDischarge', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="25000"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Water discharged from mining site</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Land Rehabilitated (hectares) <span className="text-xs text-blue-600">GRI-11</span></label>
+                    <input
+                      type="number"
+                      value={formData.environmental.landRehabilitated}
+                      onChange={(e) => handleChange('environmental', 'landRehabilitated', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="120"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Land restored post-mining</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Biodiversity Impact Score <span className="text-xs text-blue-600">GRI-304</span></label>
+                    <input
+                      type="number"
+                      value={formData.environmental.biodiversityImpact}
+                      onChange={(e) => handleChange('environmental', 'biodiversityImpact', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="7.5"
+                      step="0.1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Impact on local biodiversity (0-10 scale)</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>GHG Emissions - Scope 1 (tCO2e) <span className="text-xs text-blue-600">IFRS-S2</span></label>
                     <input
                       type="number"
                       value={formData.environmental.scope1Emissions}
                       onChange={(e) => handleChange('environmental', 'scope1Emissions', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="1250"
+                      placeholder="85000"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Direct emissions from mining operations</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Scope 2 Emissions (tCO2e)}'} <span className="text-xs text-blue-600">GRI-305-2</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>GHG Emissions - Scope 2 (tCO2e) <span className="text-xs text-blue-600">IFRS-S2</span></label>
                     <input
                       type="number"
                       value={formData.environmental.scope2Emissions}
                       onChange={(e) => handleChange('environmental', 'scope2Emissions', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="2800"
+                      placeholder="42000"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Indirect emissions from energy use</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Scope 3 Emissions (tCO2e)}'} <span className="text-xs text-blue-600">GRI-305-3</span></label>
-                    <input
-                      type="number"
-                      value={formData.environmental.scope3Emissions}
-                      onChange={(e) => handleChange('environmental', 'scope3Emissions', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="5200"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Energy Consumption (MWh)}'} <span className="text-xs text-blue-600">GRI-302-1</span></label>
-                    <input
-                      type="number"
-                      value={formData.environmental.energyConsumption}
-                      onChange={(e) => handleChange('environmental', 'energyConsumption', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="15000"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Renewable Energy (%)}'} <span className="text-xs text-blue-600">GRI-302-1</span></label>
-                    <input
-                      type="number"
-                      value={formData.environmental.renewableEnergyPercentage}
-                      onChange={(e) => handleChange('environmental', 'renewableEnergyPercentage', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="68"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Water Withdrawal (m³)}'} <span className="text-xs text-blue-600">GRI-303-3</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Water Withdrawal (m³) <span className="text-xs text-blue-600">GRI-303-3</span></label>
                     <input
                       type="number"
                       value={formData.environmental.waterWithdrawal}
                       onChange={(e) => handleChange('environmental', 'waterWithdrawal', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="8500"
+                      placeholder="150000"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Total water withdrawn for mining</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Waste Generated (tonnes)}'} <span className="text-xs text-blue-600">GRI-306-3</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Energy Consumption (MWh) <span className="text-xs text-blue-600">GRI-302-1</span></label>
                     <input
                       type="number"
-                      value={formData.environmental.wasteGenerated}
-                      onChange={(e) => handleChange('environmental', 'wasteGenerated', e.target.value)}
+                      value={formData.environmental.energyConsumption}
+                      onChange={(e) => handleChange('environmental', 'energyConsumption', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="850"
+                      placeholder="95000"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Total energy used in mining operations</p>
                   </div>
                 </div>
               </div>
@@ -801,97 +965,111 @@ function DataEntry() {
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className={`text-2xl font-bold ${theme.text.primary} mb-2`}>👥 Social Metrics</h3>
-                <p className={`${theme.text.secondary}`}>Core social metrics following GRI standards</p>
+                <h3 className={`text-2xl font-bold ${theme.text.primary} mb-2`}>👥 Advanced Social & Community Metrics</h3>
+                <p className={`${theme.text.secondary}`}>Workforce diversity, mining safety, community relations, stakeholder engagement, and local employment tracking</p>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedEntry(true)}
+                  className="mt-3 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all"
+                >
+                  🚀 Open Advanced Data Entry
+                </button>
               </div>
               <div className={`p-6 rounded-lg ${theme.bg.subtle}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Total Employees}'} <span className="text-xs text-blue-600">GRI-2-7</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Fatality Rate (per 200,000 hours) <span className="text-xs text-red-600">GRI-403-9</span></label>
                     <input
                       type="number"
-                      value={formData.social.totalEmployees}
-                      onChange={(e) => handleChange('social', 'totalEmployees', e.target.value)}
+                      step="0.01"
+                      value={formData.social.fatalityRate}
+                      onChange={(e) => handleChange('social', 'fatalityRate', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="2500"
+                      placeholder="0.02"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Critical mining safety metric</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Female Employees (%)}'} <span className="text-xs text-blue-600">GRI-405-1</span></label>
-                    <input
-                      type="number"
-                      value={formData.social.femaleEmployeesPercentage}
-                      onChange={(e) => handleChange('social', 'femaleEmployeesPercentage', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="42"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Lost Time Injury Rate}'} <span className="text-xs text-blue-600">GRI-403-9</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Lost Time Injury Rate <span className="text-xs text-blue-600">GRI-403-9</span></label>
                     <input
                       type="number"
                       step="0.01"
                       value={formData.social.lostTimeInjuryRate}
                       onChange={(e) => handleChange('social', 'lostTimeInjuryRate', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="0.8"
+                      placeholder="1.2"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Workplace injury frequency</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Training Hours/Employee}'} <span className="text-xs text-blue-600">GRI-404-1</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Local Employment (%) <span className="text-xs text-blue-600">GRI-413</span></label>
                     <input
                       type="number"
-                      value={formData.social.trainingHoursPerEmployee}
-                      onChange={(e) => handleChange('social', 'trainingHoursPerEmployee', e.target.value)}
+                      value={formData.social.localEmploymentPercentage}
+                      onChange={(e) => handleChange('social', 'localEmploymentPercentage', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="32"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Community Investment ($)}'} <span className="text-xs text-blue-600">SASB-FB-PF-410a.1</span></label>
-                    <input
-                      type="number"
-                      value={formData.social.communityInvestment}
-                      onChange={(e) => handleChange('social', 'communityInvestment', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="250000"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Employee Turnover Rate (%)}'} <span className="text-xs text-blue-600">SASB-HC-HM-330a.1</span></label>
-                    <input
-                      type="number"
-                      value={formData.social.employeeTurnoverRate}
-                      onChange={(e) => handleChange('social', 'employeeTurnoverRate', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="12"
+                      placeholder="75"
                       min="0"
                       max="100"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Percentage of local community hires</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Safety Training Hours}'} <span className="text-xs text-blue-600">SASB-RT-CH-320a.2</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Community Grievances (count) <span className="text-xs text-blue-600">GRI-413</span></label>
+                    <input
+                      type="number"
+                      value={formData.social.communityGrievances}
+                      onChange={(e) => handleChange('social', 'communityGrievances', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="8"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Formal complaints from local communities</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Total Mine Workers <span className="text-xs text-blue-600">GRI-2-7</span></label>
+                    <input
+                      type="number"
+                      value={formData.social.totalEmployees}
+                      onChange={(e) => handleChange('social', 'totalEmployees', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="3500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Total workforce at mining site</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Female Workers (%) <span className="text-xs text-blue-600">GRI-405-1</span></label>
+                    <input
+                      type="number"
+                      value={formData.social.femaleEmployeesPercentage}
+                      onChange={(e) => handleChange('social', 'femaleEmployeesPercentage', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="28"
+                      min="0"
+                      max="100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Gender diversity in mining workforce</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Safety Training Hours/Worker <span className="text-xs text-blue-600">GRI-403</span></label>
                     <input
                       type="number"
                       value={formData.social.safetyTrainingHours}
                       onChange={(e) => handleChange('social', 'safetyTrainingHours', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="40"
+                      placeholder="80"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Annual safety training per worker</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Diversity Training Completion (%)}'} <span className="text-xs text-blue-600">SASB-HC-DI-330a.2</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Community Investment (USD) <span className="text-xs text-blue-600">GRI-413</span></label>
                     <input
                       type="number"
-                      value={formData.social.diversityTrainingCompletion}
-                      onChange={(e) => handleChange('social', 'diversityTrainingCompletion', e.target.value)}
+                      value={formData.social.communityInvestment}
+                      onChange={(e) => handleChange('social', 'communityInvestment', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="95"
-                      min="0"
-                      max="100"
+                      placeholder="500000"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Investment in local community development</p>
                   </div>
                 </div>
               </div>
@@ -901,59 +1079,96 @@ function DataEntry() {
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className={`text-2xl font-bold ${theme.text.primary} mb-2`}>⚖️ Governance Metrics</h3>
-                <p className={`${theme.text.secondary}`}>Core governance metrics following GRI standards</p>
+                <h3 className={`text-2xl font-bold ${theme.text.primary} mb-2`}>⚖️ Advanced Governance & Investment</h3>
+                <p className={`${theme.text.secondary}`}>Board composition, ISSB S1/S2 disclosures, ESG ratings (MSCI/Sustainalytics), FDI tracking, and ESG-linked financing</p>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedEntry(true)}
+                  className="mt-3 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:shadow-lg transition-all"
+                >
+                  🚀 Open Advanced Data Entry
+                </button>
               </div>
               <div className={`p-6 rounded-lg ${theme.bg.subtle}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Board Size}'} <span className="text-xs text-blue-600">GRI-2-9</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Climate Risk Disclosure Score <span className="text-xs text-blue-600">IFRS-S2</span></label>
+                    <input
+                      type="number"
+                      value={formData.governance.climateRiskDisclosure}
+                      onChange={(e) => handleChange('governance', 'climateRiskDisclosure', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="85"
+                      min="0"
+                      max="100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Climate-related financial disclosure quality (0-100)</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Sustainability Governance Score <span className="text-xs text-blue-600">IFRS-S1</span></label>
+                    <input
+                      type="number"
+                      value={formData.governance.sustainabilityGovernance}
+                      onChange={(e) => handleChange('governance', 'sustainabilityGovernance', e.target.value)}
+                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
+                      placeholder="78"
+                      min="0"
+                      max="100"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">ESG governance structure effectiveness (0-100)</p>
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Board Size <span className="text-xs text-blue-600">GRI-2-9</span></label>
                     <input
                       type="number"
                       value={formData.governance.boardSize}
                       onChange={(e) => handleChange('governance', 'boardSize', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="9"
+                      placeholder="11"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Total board members</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Independent Directors (%)}'} <span className="text-xs text-blue-600">GRI-2-9</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Independent Directors (%) <span className="text-xs text-blue-600">IFRS-S1</span></label>
                     <input
                       type="number"
                       value={formData.governance.independentDirectorsPercentage}
                       onChange={(e) => handleChange('governance', 'independentDirectorsPercentage', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="75"
+                      placeholder="70"
                       min="0"
                       max="100"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Board independence percentage</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Female Directors (%)}'} <span className="text-xs text-blue-600">GRI-405-1</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Female Directors (%) <span className="text-xs text-blue-600">GRI-405-1</span></label>
                     <input
                       type="number"
                       value={formData.governance.femaleDirectorsPercentage}
                       onChange={(e) => handleChange('governance', 'femaleDirectorsPercentage', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="40"
+                      placeholder="36"
                       min="0"
                       max="100"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Gender diversity on board</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Ethics Training Completion (%)}'} <span className="text-xs text-blue-600">GRI-205-2</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Ethics Training Completion (%) <span className="text-xs text-blue-600">GRI-205-2</span></label>
                     <input
                       type="number"
                       value={formData.governance.ethicsTrainingCompletion}
                       onChange={(e) => handleChange('governance', 'ethicsTrainingCompletion', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="98"
+                      placeholder="95"
                       min="0"
                       max="100"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Staff ethics training completion rate</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Corruption Incidents}'} <span className="text-xs text-blue-600">GRI-205-3</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Corruption Incidents <span className="text-xs text-blue-600">GRI-205-3</span></label>
                     <input
                       type="number"
                       value={formData.governance.corruptionIncidents}
@@ -962,65 +1177,21 @@ function DataEntry() {
                       placeholder="0"
                       min="0"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Confirmed corruption cases</p>
                   </div>
                   <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Data Breach Incidents}'} <span className="text-xs text-blue-600">SASB-TC-SI-230a.1</span></label>
-                    <input
-                      type="number"
-                      value={formData.governance.dataBreachIncidents}
-                      onChange={(e) => handleChange('governance', 'dataBreachIncidents', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="0"
-                      min="0"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Cybersecurity Investment ($)}'} <span className="text-xs text-blue-600">SASB-TC-SI-230a.3</span></label>
-                    <input
-                      type="number"
-                      value={formData.governance.cybersecurityInvestment}
-                      onChange={(e) => handleChange('governance', 'cybersecurityInvestment', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="500000"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Supplier ESG Assessments (%)}'} <span className="text-xs text-blue-600">SASB-CG-MR-430a.1</span></label>
-                    <input
-                      type="number"
-                      value={formData.governance.supplierESGAssessments}
-                      onChange={(e) => handleChange('governance', 'supplierESGAssessments', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                      placeholder="85"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Anti-Corruption Policies}'} <span className="text-xs text-blue-600">SASB-FN-CB-510a.1</span></label>
+                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>Anti-Corruption Policies <span className="text-xs text-blue-600">GRI-205</span></label>
                     <select
                       value={formData.governance.antiCorruptionPolicies}
                       onChange={(e) => handleChange('governance', 'antiCorruptionPolicies', e.target.value)}
                       className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
                     >
                       <option value="">Select status</option>
-                      <option value="implemented">Implemented</option>
+                      <option value="implemented">Fully Implemented</option>
                       <option value="in_development">In Development</option>
                       <option value="not_implemented">Not Implemented</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${theme.text.secondary} mb-1`}>{'{Data Privacy Policies}'} <span className="text-xs text-blue-600">SASB-TC-SI-220a.1</span></label>
-                    <select
-                      value={formData.governance.dataPrivacyPolicies}
-                      onChange={(e) => handleChange('governance', 'dataPrivacyPolicies', e.target.value)}
-                      className={`w-full border rounded-md px-4 py-2 ${theme.bg.input} ${theme.border.input} ${theme.text.primary}`}
-                    >
-                      <option value="">Select status</option>
-                      <option value="comprehensive">Comprehensive</option>
-                      <option value="basic">Basic</option>
-                      <option value="none">None</option>
-                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Anti-corruption policy status</p>
                   </div>
                 </div>
               </div>
@@ -1261,16 +1432,82 @@ function DataEntry() {
             
             <div className="flex gap-3">
               {currentStep === 5 && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    const compliance = DataValidation.validateDataCompleteness(formData);
-                    showToast(`Framework Compliance: ${compliance.score}%`, 'info');
-                  }}
-                  icon="🔍"
-                >
-                  Check Compliance
-                </Button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const validation = performFullValidation(formData);
+                      setValidationResults(validation);
+                      setShowValidationPanel(true);
+                      
+                      // Push validation errors to notifications
+                      const alerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+                      
+                      if (validation.summary.totalCritical > 0) {
+                        alerts.unshift({
+                          id: Date.now(),
+                          type: 'error',
+                          title: 'Critical Validation Issues',
+                          message: `${validation.summary.totalCritical} critical issues found in ESG data`,
+                          category: 'Validation',
+                          timestamp: new Date().toISOString(),
+                          read: false
+                        });
+                      }
+                      
+                      if (validation.summary.totalErrors > 0) {
+                        alerts.unshift({
+                          id: Date.now() + 1,
+                          type: 'warning',
+                          title: 'Validation Errors Detected',
+                          message: `${validation.summary.totalErrors} errors found in ESG data`,
+                          category: 'Validation',
+                          timestamp: new Date().toISOString(),
+                          read: false
+                        });
+                      }
+                      
+                      if (validation.summary.totalWarnings > 0) {
+                        alerts.unshift({
+                          id: Date.now() + 2,
+                          type: 'info',
+                          title: 'Validation Warnings',
+                          message: `${validation.summary.totalWarnings} warnings found in ESG data`,
+                          category: 'Validation',
+                          timestamp: new Date().toISOString(),
+                          read: false
+                        });
+                      }
+                      
+                      if (validation.summary.totalCritical === 0 && validation.summary.totalErrors === 0 && validation.summary.totalWarnings === 0) {
+                        alerts.unshift({
+                          id: Date.now(),
+                          type: 'success',
+                          title: 'Validation Passed',
+                          message: 'All ESG data validation checks passed successfully',
+                          category: 'Validation',
+                          timestamp: new Date().toISOString(),
+                          read: false
+                        });
+                      }
+                      
+                      localStorage.setItem('recentAlerts', JSON.stringify(alerts));
+                    }}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    ✓ Validate Data
+                  </button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const compliance = DataValidation.validateDataCompleteness(formData);
+                      showToast(`Framework Compliance: ${compliance.score}%`, 'info');
+                    }}
+                    icon="🔍"
+                  >
+                    Check Compliance
+                  </Button>
+                </>
               )}
               
               <div className="flex gap-3">
@@ -1486,9 +1723,116 @@ function DataEntry() {
           </div>
         )}
 
-        {/* Enhanced Data Entry Modal */}
-        {showEnhancedEntry && (
-          <EnhancedDataEntry onClose={() => setShowEnhancedEntry(false)} />
+        {/* Site Hierarchy Manager Modal */}
+        {showSiteManager && (
+          <SiteHierarchyManager
+            onClose={() => setShowSiteManager(false)}
+            onSiteSelect={(site) => {
+              setSelectedSite(site);
+              setFormData(prev => ({
+                ...prev,
+                companyInfo: { ...prev.companyInfo, siteId: site.id, siteName: site.name }
+              }));
+              setShowSiteManager(false);
+              showToast(`Selected: ${site.name}`, 'success');
+            }}
+          />
+        )}
+
+        {/* Unified Advanced Data Entry Modal */}
+        {showAdvancedEntry && (
+          <UnifiedAdvancedEntry onClose={() => setShowAdvancedEntry(false)} />
+        )}
+
+        {/* Audit Trail Viewer */}
+        {showAuditTrail && (
+          <AuditTrailViewer onClose={() => setShowAuditTrail(false)} />
+        )}
+
+        {/* Approval Workflow */}
+        {showApprovals && (
+          <ApprovalWorkflow onClose={() => setShowApprovals(false)} />
+        )}
+
+        {/* Evidence Uploader */}
+        {showEvidence && (
+          <EvidenceUploader onClose={() => setShowEvidence(false)} />
+        )}
+
+        {/* Validation Panel */}
+        {showValidationPanel && validationResults && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`max-w-4xl w-full max-h-[90vh] overflow-y-auto ${theme.bg.card} rounded-xl shadow-2xl`}>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className={`text-2xl font-bold ${theme.text.primary}`}>⚠️ Validation Results</h2>
+                  <button onClick={() => setShowValidationPanel(false)} className="text-2xl">✕</button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className={`p-4 rounded-lg ${validationResults.summary.totalCritical > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
+                    <div className="text-2xl font-bold text-red-600">{validationResults.summary.totalCritical}</div>
+                    <div className="text-sm">Critical Issues</div>
+                  </div>
+                  <div className={`p-4 rounded-lg ${validationResults.summary.totalErrors > 0 ? 'bg-orange-100' : 'bg-gray-100'}`}>
+                    <div className="text-2xl font-bold text-orange-600">{validationResults.summary.totalErrors}</div>
+                    <div className="text-sm">Errors</div>
+                  </div>
+                  <div className={`p-4 rounded-lg ${validationResults.summary.totalWarnings > 0 ? 'bg-yellow-100' : 'bg-gray-100'}`}>
+                    <div className="text-2xl font-bold text-yellow-600">{validationResults.summary.totalWarnings}</div>
+                    <div className="text-sm">Warnings</div>
+                  </div>
+                </div>
+
+                <div className={`p-4 rounded-lg ${theme.bg.subtle} mb-6`}>
+                  <h3 className={`font-semibold ${theme.text.primary} mb-2`}>GRI Completeness: {validationResults.summary.griCompletenessScore}%</h3>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="bg-green-500 h-3 rounded-full" style={{width: `${validationResults.summary.griCompletenessScore}%`}}></div>
+                  </div>
+                </div>
+
+                {validationResults.crossField.errors.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-red-600 mb-2">Cross-Field Errors</h3>
+                    {validationResults.crossField.errors.map((err, i) => (
+                      <div key={i} className="p-3 bg-red-50 border-l-4 border-red-500 mb-2">
+                        <div className="font-medium">{err.field}</div>
+                        <div className="text-sm">{err.message}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {validationResults.thresholds.filter(a => a.severity === 'critical' || a.severity === 'error').length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-orange-600 mb-2">Threshold Violations</h3>
+                    {validationResults.thresholds.filter(a => a.severity === 'critical' || a.severity === 'error').map((alert, i) => (
+                      <div key={i} className={`p-3 border-l-4 mb-2 ${alert.severity === 'critical' ? 'bg-red-50 border-red-500' : 'bg-orange-50 border-orange-500'}`}>
+                        <div className="font-medium">{alert.field}</div>
+                        <div className="text-sm">{alert.message}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {validationResults.crossField.warnings.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-yellow-600 mb-2">Warnings</h3>
+                    {validationResults.crossField.warnings.map((warn, i) => (
+                      <div key={i} className="p-3 bg-yellow-50 border-l-4 border-yellow-500 mb-2">
+                        <div className="font-medium">{warn.field}</div>
+                        <div className="text-sm">{warn.message}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-3 justify-end mt-6">
+                  <button onClick={() => setShowValidationPanel(false)} className="px-4 py-2 bg-gray-300 rounded-lg">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Toast Notifications */}

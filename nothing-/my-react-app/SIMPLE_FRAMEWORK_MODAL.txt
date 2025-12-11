@@ -1,0 +1,133 @@
+SIMPLE FRAMEWORK REPORTS MODAL - REPLACE IN Reports.js
+
+Find the section starting with:
+{showFrameworkReports && (
+
+Replace the ENTIRE modal (from opening to closing) with this simple version:
+
+{showFrameworkReports && (
+  <Modal
+    isOpen={showFrameworkReports}
+    onClose={() => setShowFrameworkReports(false)}
+    title="📄 Framework-Specific Reports"
+    size="xl"
+    isDark={isDark}
+  >
+    <div className="space-y-6">
+      {data.length === 0 ? (
+        <Alert 
+          type="info"
+          title="No Data Available"
+          message="Add ESG data entries to generate framework-specific reports."
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { name: 'GRI Standards', desc: 'Global Reporting Initiative', icon: '🌍', compliance: complianceSummary.GRI?.score || 0 },
+              { name: 'SASB Standards', desc: 'Sustainability Accounting Standards', icon: '📊', compliance: complianceSummary.SASB?.score || 0 },
+              { name: 'TCFD', desc: 'Task Force on Climate-related Disclosures', icon: '🌡️', compliance: complianceSummary.TCFD?.score || 0 },
+              { name: 'BRSR', desc: 'Business Responsibility & Sustainability', icon: '🇮🇳', compliance: complianceSummary.BRSR?.score || 0 },
+              { name: 'EU Taxonomy', desc: 'EU Sustainable Finance Taxonomy', icon: '🇪🇺', compliance: 0 },
+              { name: 'ISSB S1/S2', desc: 'IFRS Sustainability Standards', icon: '📈', compliance: 0 }
+            ].map((framework, idx) => (
+              <div key={idx} className={`p-4 border-2 rounded-lg ${theme.border.primary} hover:${theme.bg.subtle}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">{framework.icon}</span>
+                  <div>
+                    <h4 className={`font-bold ${theme.text.primary}`}>{framework.name}</h4>
+                    <p className={`text-xs ${theme.text.secondary}`}>{framework.desc}</p>
+                  </div>
+                </div>
+                
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span>Compliance</span>
+                    <span className={`font-bold ${
+                      framework.compliance >= 80 ? 'text-green-600' :
+                      framework.compliance >= 60 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>{framework.compliance}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full ${
+                        framework.compliance >= 80 ? 'bg-green-500' :
+                        framework.compliance >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${framework.compliance}%` }}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="primary"
+                    onClick={() => {
+                      const normalizedData = normalizeData(data);
+                      const options = { companyName: data[0]?.companyName || 'Company', reportPeriod: new Date().getFullYear() };
+                      let pdf;
+                      switch(framework.name) {
+                        case 'GRI Standards': pdf = generateGRIPDF(normalizedData, options); break;
+                        case 'SASB Standards': pdf = generateSASBPDF(normalizedData, options); break;
+                        case 'TCFD': pdf = generateTCFDPDF(normalizedData, options); break;
+                        case 'BRSR': pdf = generateBRSRPDF(normalizedData, options); break;
+                        case 'EU Taxonomy': pdf = generateEUTaxonomyPDF(normalizedData, options); break;
+                      }
+                      if (pdf) {
+                        pdf.save(`${framework.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
+                        showToast(`${framework.name} report generated`, 'success');
+                      }
+                    }}
+                  >
+                    📥 Generate PDF
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedReport(framework.name);
+                      setShowFrameworkReports(false);
+                      showToast(`Viewing ${framework.name} template`, 'info');
+                    }}
+                  >
+                    👁️ View
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className={`p-4 rounded-lg ${theme.bg.subtle}`}>
+            <h4 className={`font-semibold ${theme.text.primary} mb-3`}>📋 Data Summary</h4>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className={theme.text.secondary}>Environmental:</span>
+                <span className="ml-2 font-medium">{normalizeData(data).filter(d => d.category === 'environmental').length} metrics</span>
+              </div>
+              <div>
+                <span className={theme.text.secondary}>Social:</span>
+                <span className="ml-2 font-medium">{normalizeData(data).filter(d => d.category === 'social').length} metrics</span>
+              </div>
+              <div>
+                <span className={theme.text.secondary}>Governance:</span>
+                <span className="ml-2 font-medium">{normalizeData(data).filter(d => d.category === 'governance').length} metrics</span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      
+      <div className="flex gap-3 pt-4">
+        <Button variant="outline" onClick={() => setShowFrameworkReports(false)}>Close</Button>
+      </div>
+    </div>
+  </Modal>
+)}
+
+INSTRUCTIONS:
+1. Remove all the complex filter/sort/selection code
+2. Keep it simple with just 2-column grid
+3. Basic PDF generation and view buttons
+4. Simple data summary at bottom
+5. No sticky headers, no complex state management

@@ -8,42 +8,48 @@ const WorkforceManagementForm = ({ onSave, onClose }) => {
   const theme = getThemeClasses(isDark);
   
   const [formData, setFormData] = useState({
-    // Workforce Composition
-    total_employees: '',
-    full_time_employees: '',
-    part_time_employees: '',
-    contract_employees: '',
+    // Mining Workforce Composition (GRI-2-7)
+    total_mine_workers: '',
+    underground_workers: '',
+    surface_workers: '',
+    contract_workers: '',
+    local_community_workers: '',
     
-    // Diversity Metrics
+    // Diversity Metrics (GRI-405-1)
     female_employees: '',
     male_employees: '',
-    non_binary_employees: '',
+    local_employees: '',
     employees_under_30: '',
     employees_30_50: '',
     employees_over_50: '',
     
-    // Leadership Diversity
-    female_managers: '',
-    female_senior_executives: '',
-    minority_employees: '',
+    // Mining Safety Metrics (GRI-403-9)
+    fatality_count: '',
+    lost_time_injuries: '',
+    total_recordable_injuries: '',
+    near_miss_incidents: '',
+    safety_training_hours: '',
     
-    // Employee Development
-    training_hours_total: '',
-    training_investment: '',
-    employees_trained: '',
+    // Mining-Specific Training (GRI-404-1)
+    blasting_certification_training: '',
+    equipment_operation_training: '',
+    emergency_response_training: '',
+    environmental_awareness_training: '',
+    
+    // Community Relations (GRI-413)
+    local_employment_percentage: '',
+    community_training_programs: '',
+    artisanal_miners_supported: '',
     
     // Retention & Turnover
     voluntary_turnover: '',
     involuntary_turnover: '',
     new_hires: '',
     
-    // Compensation
-    gender_pay_gap: '',
-    average_compensation: '',
-    
     // Additional Information
     reporting_period: new Date().getFullYear(),
-    location: '',
+    mine_site_name: '',
+    mine_location: '',
     union_representation: false
   });
 
@@ -126,43 +132,50 @@ const WorkforceManagementForm = ({ onSave, onClose }) => {
     <div className={`max-w-4xl mx-auto p-6 ${theme.bg.card} rounded-xl shadow-lg`}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className={`text-2xl font-bold ${theme.text.primary}`}>👥 Workforce Management</h2>
-          <p className={`text-sm ${theme.text.secondary}`}>Track diversity, development, and retention metrics</p>
+          <h2 className={`text-2xl font-bold ${theme.text.primary}`}>⛏️👥 Mining Workforce & Safety</h2>
+          <p className={`text-sm ${theme.text.secondary}`}>Track mining workforce, safety, and community metrics - GRI 403 & 413</p>
         </div>
         <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Workforce Composition */}
+        {/* Mining Workforce Composition - GRI-2-7 */}
         <div className={`p-4 rounded-lg border-l-4 border-blue-500 ${theme.bg.subtle}`}>
-          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Workforce Composition</h3>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining Workforce Composition - GRI-2-7</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="number"
-              placeholder="Total Employees"
-              value={formData.total_employees}
-              onChange={(e) => handleInputChange('total_employees', e.target.value)}
+              placeholder="Total Mine Workers"
+              value={formData.total_mine_workers}
+              onChange={(e) => handleInputChange('total_mine_workers', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
             <input
               type="number"
-              placeholder="Full-time Employees"
-              value={formData.full_time_employees}
-              onChange={(e) => handleInputChange('full_time_employees', e.target.value)}
+              placeholder="Underground Workers"
+              value={formData.underground_workers}
+              onChange={(e) => handleInputChange('underground_workers', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
             <input
               type="number"
-              placeholder="Part-time Employees"
-              value={formData.part_time_employees}
-              onChange={(e) => handleInputChange('part_time_employees', e.target.value)}
+              placeholder="Surface Workers"
+              value={formData.surface_workers}
+              onChange={(e) => handleInputChange('surface_workers', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
             <input
               type="number"
-              placeholder="Contract Employees"
-              value={formData.contract_employees}
-              onChange={(e) => handleInputChange('contract_employees', e.target.value)}
+              placeholder="Contract Workers"
+              value={formData.contract_workers}
+              onChange={(e) => handleInputChange('contract_workers', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Local Community Workers"
+              value={formData.local_community_workers}
+              onChange={(e) => handleInputChange('local_community_workers', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
           </div>
@@ -229,29 +242,108 @@ const WorkforceManagementForm = ({ onSave, onClose }) => {
           </div>
         </div>
 
-        {/* Training & Development */}
-        <div className={`p-4 rounded-lg border-l-4 border-orange-500 ${theme.bg.subtle}`}>
-          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Training & Development</h3>
+        {/* Mining Safety Metrics - GRI-403-9 */}
+        <div className={`p-4 rounded-lg border-l-4 border-red-500 ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining Safety Metrics - GRI-403-9 (Critical)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="number"
-              placeholder="Total Training Hours"
-              value={formData.training_hours_total}
-              onChange={(e) => handleInputChange('training_hours_total', e.target.value)}
+              placeholder="Fatality Count"
+              value={formData.fatality_count}
+              onChange={(e) => handleInputChange('fatality_count', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input} border-red-300`}
+            />
+            <input
+              type="number"
+              placeholder="Lost Time Injuries"
+              value={formData.lost_time_injuries}
+              onChange={(e) => handleInputChange('lost_time_injuries', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
             <input
               type="number"
-              placeholder="Training Investment ($)"
-              value={formData.training_investment}
-              onChange={(e) => handleInputChange('training_investment', e.target.value)}
+              placeholder="Total Recordable Injuries"
+              value={formData.total_recordable_injuries}
+              onChange={(e) => handleInputChange('total_recordable_injuries', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Near Miss Incidents"
+              value={formData.near_miss_incidents}
+              onChange={(e) => handleInputChange('near_miss_incidents', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Safety Training Hours"
+              value={formData.safety_training_hours}
+              onChange={(e) => handleInputChange('safety_training_hours', e.target.value)}
               className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
             />
           </div>
-          <div className="mt-3 text-right">
-            <span className={`font-bold ${theme.text.primary}`}>
-              Training Hours per Employee: {calculations.training_hours_per_employee.toFixed(1)} hours
-            </span>
+        </div>
+
+        {/* Mining-Specific Training - GRI-404-1 */}
+        <div className={`p-4 rounded-lg border-l-4 border-orange-500 ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Mining-Specific Training - GRI-404-1</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="number"
+              placeholder="Blasting Certification (hours)"
+              value={formData.blasting_certification_training}
+              onChange={(e) => handleInputChange('blasting_certification_training', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Equipment Operation (hours)"
+              value={formData.equipment_operation_training}
+              onChange={(e) => handleInputChange('equipment_operation_training', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Emergency Response (hours)"
+              value={formData.emergency_response_training}
+              onChange={(e) => handleInputChange('emergency_response_training', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Environmental Awareness (hours)"
+              value={formData.environmental_awareness_training}
+              onChange={(e) => handleInputChange('environmental_awareness_training', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+          </div>
+        </div>
+
+        {/* Community Relations - GRI-413 */}
+        <div className={`p-4 rounded-lg border-l-4 border-green-500 ${theme.bg.subtle}`}>
+          <h3 className={`font-semibold ${theme.text.primary} mb-3`}>Community Relations - GRI-413</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="number"
+              placeholder="Local Employment %"
+              value={formData.local_employment_percentage}
+              onChange={(e) => handleInputChange('local_employment_percentage', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Community Training Programs"
+              value={formData.community_training_programs}
+              onChange={(e) => handleInputChange('community_training_programs', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
+            <input
+              type="number"
+              placeholder="Artisanal Miners Supported"
+              value={formData.artisanal_miners_supported}
+              onChange={(e) => handleInputChange('artisanal_miners_supported', e.target.value)}
+              className={`p-3 border rounded-lg ${theme.bg.input} ${theme.border.input}`}
+            />
           </div>
         </div>
 

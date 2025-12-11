@@ -9,6 +9,7 @@ import { useTheme } from "./contexts/ThemeContext";
 import { getThemeClasses } from "./utils/themeUtils";
 import { MetricCard, StatusCard } from "./components/ProfessionalCard";
 import ProfessionalHeader from "./components/ProfessionalHeader";
+import EnhancedDataEntry from "./modules/EnhancedDataEntry";
 
 
 // Data normalization functions from Reports.js
@@ -162,6 +163,7 @@ function Dashboard() {
   const [showPrimaryActions, setShowPrimaryActions] = useState(false);
   const [showManagementActions, setShowManagementActions] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
+  const [showEnhancedEntry, setShowEnhancedEntry] = useState(false);
   const [reportsData, setReportsData] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -339,21 +341,30 @@ function Dashboard() {
                 
                 {showPrimaryActions && (
                   <div className="mt-3 space-y-2 animate-fade-in">
-                    {[
-                      { icon: '⚡', label: 'Add New Data', link: '/data-entry' },
-                      { icon: '📊', label: 'View Analytics', link: '/analytics' },
-                      { icon: '🚀', label: 'Advanced Analytics', link: '/advanced-analytics' },
-                      { icon: '📋', label: 'Generate Report', link: '/reports' }
-                    ].map((action, index) => (
-                      <Link key={index} to={action.link} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
-                        isDark 
-                          ? 'hover:bg-gray-700/50' 
-                          : 'hover:bg-gray-50/80 hover:shadow-md'
-                      }`}>
-                        <span className="text-lg group-hover:scale-110 transition-transform duration-200">{action.icon}</span>
-                        <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>{action.label}</span>
-                      </Link>
-                    ))}
+                    <Link to="/data-entry" className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                      isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/80 hover:shadow-md'
+                    }`}>
+                      <span className="text-lg group-hover:scale-110 transition-transform duration-200">⚡</span>
+                      <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>Add New Data</span>
+                    </Link>
+                    <Link to="/analytics" className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                      isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/80 hover:shadow-md'
+                    }`}>
+                      <span className="text-lg group-hover:scale-110 transition-transform duration-200">📊</span>
+                      <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>View Analytics</span>
+                    </Link>
+                    <div onClick={() => setShowEnhancedEntry(true)} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                      isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/80 hover:shadow-md'
+                    }`}>
+                      <span className="text-lg group-hover:scale-110 transition-transform duration-200">🚀</span>
+                      <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>Advanced Data Entry</span>
+                    </div>
+                    <Link to="/reports" className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                      isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/80 hover:shadow-md'
+                    }`}>
+                      <span className="text-lg group-hover:scale-110 transition-transform duration-200">📋</span>
+                      <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>Generate Report</span>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -523,6 +534,11 @@ function Dashboard() {
           </div>
         </div>
       </main>
+
+      {/* Enhanced Data Entry Modal */}
+      {showEnhancedEntry && (
+        <EnhancedDataEntry onClose={() => setShowEnhancedEntry(false)} />
+      )}
     </div>
   );
 }

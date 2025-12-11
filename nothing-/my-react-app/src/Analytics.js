@@ -87,6 +87,7 @@ import { MetricCard, StatusCard } from "./components/ProfessionalCard";
 import { Alert, Button, LoadingSpinner, Toast } from "./components/ProfessionalUX";
 import { RBACManager, PERMISSIONS } from "./utils/rbac";
 import { ESG_FRAMEWORKS, STANDARD_METRICS } from "./utils/esgFrameworks";
+import { validateMiningMetrics, MINING_METRICS, ZIMBABWE_MINING_REQUIREMENTS } from "./utils/miningMetrics";
 
 ChartJS.register(
   ArcElement,
@@ -153,6 +154,7 @@ const Analytics = () => {
   const [selectedMetric, setSelectedMetric] = useState('overall');
   const [selectedFramework, setSelectedFramework] = useState('GRI');
   const [refreshing, setRefreshing] = useState(false);
+  const [miningCompliance, setMiningCompliance] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -485,6 +487,24 @@ const Analytics = () => {
         const monthlyTrends = { 'Jan': 5, 'Feb': 8, 'Mar': 12, 'Apr': 15, 'May': 18, 'Jun': backendData.length };
         setMonthlyData(monthlyTrends);
         
+        // Check for mining sector data
+        const isMining = convertedData.some(item => item.sector === 'mining' || item.region === 'zimbabwe');
+        if (isMining) {
+          const miningData = {
+            environmental: {},
+            social: {},
+            governance: {}
+          };
+          convertedData.forEach(item => {
+            if (item.category && item.metric && item.value) {
+              if (!miningData[item.category]) miningData[item.category] = {};
+              miningData[item.category][item.metric] = item.value;
+            }
+          });
+          const miningResult = validateMiningMetrics(miningData);
+          setMiningCompliance(miningResult);
+        }
+        
         showToast('Analytics data refreshed successfully', 'success');
       } else {
         showToast('Backend unavailable - using cached data', 'warning');
@@ -811,6 +831,92 @@ const Analytics = () => {
             })}
           </div>
         </div>
+
+        {/* Mining Sector Compliance - Show if mining data detected */}
+        {miningCompliance && (
+          <div className={`mt-8 rounded-2xl p-6 border shadow-lg transition-all duration-300 ${theme.bg.card} ${theme.border.primary}`}>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className={`text-xl font-bold ${theme.text.primary}`}>⛏️ Mining Sector ESG Compliance</h2>
+                <p className={`text-sm ${theme.text.secondary}`}>GRI-11, GRI-303, GRI-304, GRI-403, GRI-413, IFRS S1/S2 Standards</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-lg px-3 py-1 rounded-full font-bold ${
+                  miningCompliance.score >= 80 ? 'bg-green-100 text-green-800' :
+                  miningCompliance.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {miningCompliance.score}% Compliant
+                </span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+              {Object.entries(miningCompliance.compliance).map(([standard, isCompliant]) => (
+                <div key={standard} className={`p-4 rounded-lg text-center transition-all duration-200 hover:scale-105 ${
+                  isCompliant ? 'bg-green-50 border-2 border-green-500 shadow-md' : 'bg-gray-50 border-2 border-gray-300'
+                }`}>
+                  <div className="text-3xl mb-2">{isCompliant ? '✅' : '⚪'}</div>
+                  <div className={`text-xs font-bold ${
+                    isCompliant ? 'text-green-800' : 'text-gray-600'
+                  }`}>
+                    {standard.toUpperCase()}
+                  </div>
+                  <div className={`text-xs mt-1 ${
+                    isCompliant ? 'text-green-600' : 'text-gray-500'
+                  }`}>
+                    {isCompliant ? 'Compliant' : 'Missing Data'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <Alert
+              type="info"
+              title="🇿🇼 Zimbabwe Mining Sector Requirements"
+              message="This compliance assessment aligns with Zimbabwe mining regulations and international investor ESG requirements (80% of investors consider ESG critical for mining investments)."
+              className="mb-4"
+            />
+            
+            <div className={`p-4 rounded-lg ${theme.bg.subtle}`}>
+              <h3 className={`font-semibold ${theme.text.primary} mb-3`}>📋 Key Requirements Coverage</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Environmental:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.environmental.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Social:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.social.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Governance:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.governance.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <span className={`font-medium ${theme.text.secondary}`}>Investor Focus:</span>
+                  <ul className="mt-2 space-y-1">
+                    {ZIMBABWE_MINING_REQUIREMENTS.investorFocus.map((req, idx) => (
+                      <li key={idx} className={theme.text.primary}>• {req}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Framework Compliance Panel */}
         <div className={`mt-8 rounded-2xl p-6 border shadow-lg transition-all duration-300 ${theme.bg.card} ${theme.border.primary}`}>
