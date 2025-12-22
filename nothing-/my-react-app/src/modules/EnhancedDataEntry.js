@@ -1,45 +1,72 @@
 import React, { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSector } from '../contexts/SectorContext';
 import { getThemeClasses } from '../utils/themeUtils';
 
 import WaterManagementForm from './environmental/WaterManagementForm';
 import WorkforceManagementForm from './social/WorkforceManagementForm';
 import BoardManagementForm from './governance/BoardManagementForm';
+import PatientSafetyForm from './social/PatientSafetyForm';
 
-const EnhancedDataEntry = ({ onClose }) => {
+const EnhancedDataEntry = ({ onClose, onValidationResult }) => {
   const { isDark } = useTheme();
+  const { currentSector, sectorConfig } = useSector();
   const theme = getThemeClasses(isDark);
   
   const [selectedModule, setSelectedModule] = useState(null);
   const [toast, setToast] = useState(null);
 
-  const modules = [
+  const getSectorModules = () => {
+    const baseModules = [
+      {
+        id: 'water_management',
+        title: '💧 Water Management',
+        description: 'Track water withdrawal, discharge, and recycling',
+        category: 'Environmental',
+        component: WaterManagementForm,
+        color: 'blue',
+        sectors: ['mining', 'manufacturing', 'healthcare']
+      },
+      {
+        id: 'workforce_management',
+        title: '👥 Workforce Management',
+        description: 'Monitor diversity, training, and retention',
+        category: 'Social',
+        component: WorkforceManagementForm,
+        color: 'purple',
+        sectors: ['mining', 'manufacturing', 'healthcare']
+      },
+      {
+        id: 'board_management',
+        title: '⚖️ Board Management',
+        description: 'Track board composition and governance',
+        category: 'Governance',
+        component: BoardManagementForm,
+        color: 'indigo',
+        sectors: ['mining', 'manufacturing', 'healthcare']
+      }
+    ];
 
-    {
-      id: 'water_management',
-      title: '💧 Water Management',
-      description: 'Track water withdrawal, discharge, and recycling',
-      category: 'Environmental',
-      component: WaterManagementForm,
-      color: 'blue'
-    },
-    {
-      id: 'workforce_management',
-      title: '👥 Workforce Management',
-      description: 'Monitor diversity, training, and retention',
-      category: 'Social',
-      component: WorkforceManagementForm,
-      color: 'purple'
-    },
-    {
-      id: 'board_management',
-      title: '⚖️ Board Management',
-      description: 'Track board composition and governance',
-      category: 'Governance',
-      component: BoardManagementForm,
-      color: 'indigo'
+    // Add sector-specific modules
+    if (currentSector === 'healthcare') {
+      baseModules.push({
+        id: 'patient_safety',
+        title: '🏥 Patient Safety',
+        description: 'Track patient safety incidents and quality metrics',
+        category: 'Social',
+        component: PatientSafetyForm,
+        color: 'pink',
+        sectors: ['healthcare']
+      });
     }
-  ];
+
+    // Filter modules based on current sector
+    return baseModules.filter(module => 
+      module.sectors.includes(currentSector)
+    );
+  };
+
+  const modules = getSectorModules();
 
   const handleModuleSelect = (module) => {
     setSelectedModule(module);
@@ -47,6 +74,16 @@ const EnhancedDataEntry = ({ onClose }) => {
 
   const handleDataSave = (data) => {
     setToast({ message: 'Data saved successfully!', type: 'success' });
+    
+    // Send validation result to Dashboard
+    if (onValidationResult) {
+      onValidationResult({
+        module: selectedModule.title,
+        message: 'Data validated and saved successfully',
+        status: 'success'
+      });
+    }
+    
     setTimeout(() => setToast(null), 3000);
     setSelectedModule(null);
   };
@@ -68,6 +105,7 @@ const EnhancedDataEntry = ({ onClose }) => {
           <ModuleComponent 
             onSave={handleDataSave}
             onClose={handleModuleClose}
+            onValidationResult={onValidationResult}
           />
         </div>
       </div>
@@ -80,8 +118,8 @@ const EnhancedDataEntry = ({ onClose }) => {
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className={`text-2xl font-bold ${theme.text.primary}`}>📊 Enhanced ESG Data Entry</h2>
-              <p className={`text-sm ${theme.text.secondary}`}>Choose a specialized module for detailed data collection</p>
+              <h2 className={`text-2xl font-bold ${theme.text.primary}`}>{sectorConfig?.icon} {sectorConfig?.name} ESG Data Entry</h2>
+              <p className={`text-sm ${theme.text.secondary}`}>Specialized modules for {sectorConfig?.name?.toLowerCase()} industry data collection</p>
             </div>
             <button 
               onClick={onClose}
@@ -109,6 +147,7 @@ const EnhancedDataEntry = ({ onClose }) => {
                           module.color === 'green' ? 'border-green-200 hover:border-green-400 hover:bg-green-50' :
                           module.color === 'blue' ? 'border-blue-200 hover:border-blue-400 hover:bg-blue-50' :
                           module.color === 'purple' ? 'border-purple-200 hover:border-purple-400 hover:bg-purple-50' :
+                          module.color === 'pink' ? 'border-pink-200 hover:border-pink-400 hover:bg-pink-50' :
                           'border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50'
                         } ${theme.bg.card}`}
                       >
@@ -125,6 +164,7 @@ const EnhancedDataEntry = ({ onClose }) => {
                                 module.color === 'green' ? 'bg-green-100 text-green-800' :
                                 module.color === 'blue' ? 'bg-blue-100 text-blue-800' :
                                 module.color === 'purple' ? 'bg-purple-100 text-purple-800' :
+                                module.color === 'pink' ? 'bg-pink-100 text-pink-800' :
                                 'bg-indigo-100 text-indigo-800'
                               }`}>
                                 {module.category}
@@ -139,6 +179,7 @@ const EnhancedDataEntry = ({ onClose }) => {
                               module.color === 'green' ? 'bg-green-100' :
                               module.color === 'blue' ? 'bg-blue-100' :
                               module.color === 'purple' ? 'bg-purple-100' :
+                              module.color === 'pink' ? 'bg-pink-100' :
                               'bg-indigo-100'
                             }`}>
                               <span className="text-lg">→</span>

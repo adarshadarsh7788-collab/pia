@@ -9,14 +9,13 @@ import {
 
 import Login from "./Login.jsx";
 import { ThemeProvider } from './contexts/ThemeContext';
+import { SectorProvider } from './contexts/SectorContext';
 import AuditTrailViewer from './components/AuditTrailViewer';
-import ApprovalWorkflow from './components/ApprovalWorkflow';
+import SectorSelector from './components/SectorSelector';
+import SectorDashboard from './components/SectorDashboard';
+import { initializeSector } from './utils/sectorInit';
+
 import EvidenceUploader from './components/EvidenceUploader';
-import ComplianceReports from './components/ComplianceReports';
-import SecuritySettings from './components/SecuritySettings';
-import ComplianceCalendar from './components/ComplianceCalendar';
-import AdvancedBenchmarking from './components/AdvancedBenchmarking';
-import AutomatedReminders from './components/AutomatedReminders';
 import {
   LazyDashboard,
   LazyDataEntry,
@@ -61,42 +60,22 @@ const ProtectedRoute = ({ children }) => {
 const Layout = () => {
   const location = useLocation();
   const hideFooterOn = ["/login"];
-  const [showAudit, setShowAudit] = useState(false);
-  const [showWorkflow, setShowWorkflow] = useState(false);
-  const [showEvidence, setShowEvidence] = useState(false);
-  const [showReports, setShowReports] = useState(false);
-  const [showSecurity, setShowSecurity] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [showBenchmarking, setShowBenchmarking] = useState(false);
-  const [showReminders, setShowReminders] = useState(false);
 
   return (
     <div className="flex flex-col min-h-screen">
       {location.pathname !== '/login' && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
-          <button onClick={() => setShowReminders(true)} className="bg-pink-600 text-white p-4 rounded-full shadow-lg hover:bg-pink-700" title="Reminders">🔔</button>
-          <button onClick={() => setShowBenchmarking(true)} className="bg-teal-600 text-white p-4 rounded-full shadow-lg hover:bg-teal-700" title="Benchmarking">📊</button>
-          <button onClick={() => setShowCalendar(true)} className="bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700" title="Compliance Calendar">📅</button>
-          <button onClick={() => setShowSecurity(true)} className="bg-red-600 text-white p-4 rounded-full shadow-lg hover:bg-red-700" title="Security Settings">🔒</button>
-          <button onClick={() => setShowAudit(true)} className="bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700" title="Audit Trail">📋</button>
-          <button onClick={() => setShowWorkflow(true)} className="bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700" title="Workflows">✅</button>
-          <button onClick={() => setShowEvidence(true)} className="bg-purple-600 text-white p-4 rounded-full shadow-lg hover:bg-purple-700" title="Evidence">📁</button>
-          <button onClick={() => setShowReports(true)} className="bg-orange-600 text-white p-4 rounded-full shadow-lg hover:bg-orange-700" title="Reports">📊</button>
+          {/* No floating buttons - all moved to Dashboard */}
         </div>
       )}
-      {showReminders && <AutomatedReminders onClose={() => setShowReminders(false)} />}
-      {showBenchmarking && <AdvancedBenchmarking onClose={() => setShowBenchmarking(false)} />}
-      {showCalendar && <ComplianceCalendar onClose={() => setShowCalendar(false)} />}
-      {showSecurity && <SecuritySettings onClose={() => setShowSecurity(false)} />}
-      {showAudit && <AuditTrailViewer onClose={() => setShowAudit(false)} />}
-      {showWorkflow && <ApprovalWorkflow onClose={() => setShowWorkflow(false)} />}
-      {showEvidence && <EvidenceUploader dataId="ESG_001" onClose={() => setShowEvidence(false)} />}
-      {showReports && <ComplianceReports onClose={() => setShowReports(false)} />}
+
       <div className="flex-grow">
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><LazyDashboard /></ProtectedRoute>} />
+            <Route path="/sectors" element={<ProtectedRoute><SectorSelector /></ProtectedRoute>} />
+            <Route path="/sector/:sector" element={<ProtectedRoute><SectorDashboard /></ProtectedRoute>} />
             <Route path="/data-entry" element={<ProtectedRoute><LazyDataEntry /></ProtectedRoute>} />
             <Route path="/industry-standard-data-entry" element={<ProtectedRoute><LazyIndustryStandardDataEntry /></ProtectedRoute>} />
             <Route path="/materiality-assessment" element={<ProtectedRoute><LazyMaterialityAssessment /></ProtectedRoute>} />
@@ -122,6 +101,7 @@ const Layout = () => {
                 <UserManagement />
               </RBACProtectedRoute>
             } />
+            <Route path="/evidence-management" element={<ProtectedRoute><EvidenceUploader dataId="ESG_MAIN" onClose={() => window.history.back()} /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
@@ -133,11 +113,18 @@ const Layout = () => {
 };
 
 function App() {
+  // Initialize sector on app start
+  React.useEffect(() => {
+    initializeSector();
+  }, []);
+
   return (
     <ThemeProvider>
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Layout />
-      </Router>
+      <SectorProvider>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Layout />
+        </Router>
+      </SectorProvider>
     </ThemeProvider>
   );
 }

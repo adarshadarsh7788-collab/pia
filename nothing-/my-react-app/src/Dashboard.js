@@ -6,10 +6,14 @@ import APIService from "./services/apiService";
 import ModuleAPI from "./services/moduleAPI";
 import ReportsAPI from "./services/reportsAPI";
 import { useTheme } from "./contexts/ThemeContext";
+import { useSector } from "./contexts/SectorContext";
 import { getThemeClasses } from "./utils/themeUtils";
 import { MetricCard, StatusCard } from "./components/ProfessionalCard";
 import ProfessionalHeader from "./components/ProfessionalHeader";
 import EnhancedDataEntry from "./modules/EnhancedDataEntry";
+import ComplianceManager from "./components/ComplianceManager";
+import AdvancedBenchmarking from "./components/AdvancedBenchmarking";
+import AuditTrailViewer from "./components/AuditTrailViewer";
 
 
 // Data normalization functions from Reports.js
@@ -150,6 +154,7 @@ document.head.appendChild(style);
 function Dashboard() {
   const navigate = useNavigate();
   const { isDark, toggleTheme } = useTheme();
+  const { currentSector, sectorConfig } = useSector();
   const theme = getThemeClasses(isDark);
   const [kpis, setKpis] = useState({
     overallScore: 0,
@@ -164,9 +169,13 @@ function Dashboard() {
   const [showManagementActions, setShowManagementActions] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [showEnhancedEntry, setShowEnhancedEntry] = useState(false);
+  const [showComplianceManager, setShowComplianceManager] = useState(false);
+  const [showBenchmarking, setShowBenchmarking] = useState(false);
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [reportsData, setReportsData] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [validationResults, setValidationResults] = useState([]);
 
   useEffect(() => {
     const updateData = async () => {
@@ -208,6 +217,8 @@ function Dashboard() {
     
     const loadAlerts = () => {
       const storedAlerts = JSON.parse(localStorage.getItem('recentAlerts') || '[]');
+      const storedValidation = JSON.parse(localStorage.getItem('validationResults') || '[]');
+      
       const now = new Date();
       const recentAlerts = storedAlerts
         .filter(alert => {
@@ -221,18 +232,35 @@ function Dashboard() {
           message: alert.title,
           category: alert.category
         }));
+      
+      const recentValidation = storedValidation
+        .filter(result => {
+          const resultTime = new Date(result.timestamp);
+          return (now - resultTime) < 24 * 60 * 60 * 1000;
+        })
+        .slice(0, 5);
+      
       setAlerts(recentAlerts);
+      setValidationResults(recentValidation);
     };
     
     updateData();
     loadAlerts();
     
     // Listen for storage changes to update in real-time
-    const handleStorageChange = () => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'recentAlerts' || e.key === null) {
+        loadAlerts();
+      }
       updateData();
-      loadAlerts();
     };
     window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events
+    const handleCustomEvent = () => {
+      loadAlerts();
+    };
+    window.addEventListener('alertsCleared', handleCustomEvent);
     
     // Check for updates periodically
     const interval = setInterval(() => {
@@ -242,6 +270,7 @@ function Dashboard() {
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('alertsCleared', handleCustomEvent);
       clearInterval(interval);
     };
   }, []);
@@ -269,7 +298,47 @@ function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-6">
-        {/* Enhanced KPI Cards */}
+        {/* Sector Selection Banner */}
+        <div className={`mb-6 rounded-2xl p-4 border transition-all duration-300 ${
+          isDark 
+            ? 'bg-gradient-to-r from-blue-900/50 to-purple-900/50 border-blue-700/50' 
+            : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${
+                sectorConfig?.color === 'amber' ? 'from-amber-500 to-orange-500' :
+                sectorConfig?.color === 'pink' ? 'from-pink-500 to-rose-500' :
+                sectorConfig?.color === 'blue' ? 'from-blue-500 to-indigo-500' :
+                'from-gray-500 to-gray-600'
+              } flex items-center justify-center text-white text-lg shadow-lg`}>
+                {sectorConfig?.icon || '🏢'}
+              </div>
+              <div>
+                <h3 className={`font-semibold ${theme.text.primary}`}>
+                  Current Sector: {sectorConfig?.name || 'Manufacturing'}
+                </h3>
+                <p className={`text-sm ${theme.text.secondary}`}>
+                  Access sector-specific ESG tools and templates
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate('/sectors')}
+                className={`px-4 py-2 rounded-lg border transition-colors ${theme.border.primary} ${theme.hover.card}`}
+              >
+                Change Sector
+              </button>
+              <button
+                onClick={() => navigate(`/sector/${currentSector}`)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Sector Dashboard →
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard 
             icon="⭐" 
@@ -359,6 +428,12 @@ function Dashboard() {
                       <span className="text-lg group-hover:scale-110 transition-transform duration-200">🚀</span>
                       <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>Advanced Data Entry</span>
                     </div>
+                    <Link to="/evidence-management" className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                      isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/80 hover:shadow-md'
+                    }`}>
+                      <span className="text-lg group-hover:scale-110 transition-transform duration-200">📁</span>
+                      <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>Evidence Management</span>
+                    </Link>
                     <Link to="/reports" className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
                       isDark ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/80 hover:shadow-md'
                     }`}>
@@ -391,16 +466,28 @@ function Dashboard() {
                       { icon: '✓', label: 'Compliance', link: '/compliance' },
                       { icon: '👥', label: 'Stakeholders', link: '/stakeholders' },
                       { icon: '⚖️', label: 'Regulatory', link: '/regulatory' },
-                      { icon: '🔄', label: 'Workflow & Approval', link: '/workflow' }
+                      { icon: '📋', label: 'Workflow & Approval', link: '/workflow' },
+                      { icon: '📅', label: 'Compliance Manager', action: () => setShowComplianceManager(true) }
                     ].map((action, index) => (
-                      <Link key={index} to={action.link} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
-                        isDark 
-                          ? 'hover:bg-gray-700/50' 
-                          : 'hover:bg-gray-50/80 hover:shadow-md'
-                      }`}>
-                        <span className="text-lg group-hover:scale-110 transition-transform duration-200">{action.icon}</span>
-                        <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>{action.label}</span>
-                      </Link>
+                      action.link ? (
+                        <Link key={index} to={action.link} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                          isDark 
+                            ? 'hover:bg-gray-700/50' 
+                            : 'hover:bg-gray-50/80 hover:shadow-md'
+                        }`}>
+                          <span className="text-lg group-hover:scale-110 transition-transform duration-200">{action.icon}</span>
+                          <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>{action.label}</span>
+                        </Link>
+                      ) : (
+                        <div key={index} onClick={action.action} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                          isDark 
+                            ? 'hover:bg-gray-700/50' 
+                            : 'hover:bg-gray-50/80 hover:shadow-md'
+                        }`}>
+                          <span className="text-lg group-hover:scale-110 transition-transform duration-200">{action.icon}</span>
+                          <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>{action.label}</span>
+                        </div>
+                      )
                     ))}
                   </div>
                 )}
@@ -428,22 +515,70 @@ function Dashboard() {
                       { icon: '🎯', label: 'Materiality Assessment', link: '/materiality-assessment' },
                       { icon: '🔗', label: 'Supply Chain ESG', link: '/supply-chain' },
                       { icon: '🔌', label: 'Integration Dashboard', link: '/integrations' },
-                      { icon: '📡', label: 'IoT Monitoring', link: '/iot' },
+                      { icon: '📊', label: 'Advanced Benchmarking', action: () => setShowBenchmarking(true) },
+                      { icon: '📋', label: 'Audit Trail', action: () => setShowAuditTrail(true) },
                       { icon: '🧮', label: 'ESG Calculators', link: '/calculators' }
                     ].map((action, index) => (
-                      <Link key={index} to={action.link} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
-                        isDark 
-                          ? 'hover:bg-gray-700/50' 
-                          : 'hover:bg-gray-50/80 hover:shadow-md'
-                      }`}>
-                        <span className="text-lg group-hover:scale-110 transition-transform duration-200">{action.icon}</span>
-                        <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>{action.label}</span>
-                      </Link>
+                      action.link ? (
+                        <Link key={index} to={action.link} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                          isDark 
+                            ? 'hover:bg-gray-700/50' 
+                            : 'hover:bg-gray-50/80 hover:shadow-md'
+                        }`}>
+                          <span className="text-lg group-hover:scale-110 transition-transform duration-200">{action.icon}</span>
+                          <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>{action.label}</span>
+                        </Link>
+                      ) : (
+                        <div key={index} onClick={action.action} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
+                          isDark 
+                            ? 'hover:bg-gray-700/50' 
+                            : 'hover:bg-gray-50/80 hover:shadow-md'
+                        }`}>
+                          <span className="text-lg group-hover:scale-110 transition-transform duration-200">{action.icon}</span>
+                          <span className={`font-medium transition-colors duration-200 ${theme.text.secondary} group-hover:${theme.text.primary}`}>{action.label}</span>
+                        </div>
+                      )
                     ))}
                   </div>
                 )}
               </div>
             </div>
+            
+            {/* Validation Results Section */}
+            <div className={`pt-6 border-t transition-colors duration-300 ${theme.border.secondary}`}>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-blue-500 text-xl">✓</span>
+                <h3 className={`font-semibold transition-colors duration-300 ${theme.text.primary}`}>Validation Results</h3>
+                <span className={`ml-auto text-xs px-2 py-1 rounded-full font-medium ${isDark ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-600'}`}>{validationResults.length}</span>
+              </div>
+              <div className={`space-y-3 text-sm transition-colors duration-300 ${theme.text.secondary}`}>
+                {validationResults.length === 0 ? (
+                  <div className={`text-center py-4 ${theme.text.secondary}`}>
+                    <span className="text-2xl mb-2 block">📝</span>
+                    <p>No recent validation results</p>
+                    <p className="text-xs mt-1">Submit data to see validation status</p>
+                  </div>
+                ) : (
+                  validationResults.map((result, index) => (
+                    <div key={index} className={`flex items-center gap-3 p-2 rounded-lg transition-colors duration-200 cursor-pointer ${theme.hover.subtle}`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        result.status === 'success' ? 'bg-green-400' : 
+                        result.status === 'warning' ? 'bg-yellow-400' : 'bg-red-400'
+                      }`}></div>
+                      <div className="flex-1">
+                        <span className="block">{result.module} - {result.message}</span>
+                        <span className="text-xs opacity-75">{new Date(result.timestamp).toLocaleString()}</span>
+                      </div>
+                      <span className={`text-xs font-medium ${
+                        result.status === 'success' ? 'text-green-500' : 
+                        result.status === 'warning' ? 'text-yellow-600' : 'text-red-500'
+                      }`}>{result.status.toUpperCase()}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
             {/* Alerts Section */}
             <div className={`pt-6 border-t transition-colors duration-300 ${theme.border.secondary}`}>
               <div className="flex items-center gap-2 mb-4">
@@ -537,7 +672,34 @@ function Dashboard() {
 
       {/* Enhanced Data Entry Modal */}
       {showEnhancedEntry && (
-        <EnhancedDataEntry onClose={() => setShowEnhancedEntry(false)} />
+        <EnhancedDataEntry 
+          onClose={() => setShowEnhancedEntry(false)} 
+          onValidationResult={(result) => {
+            const newResult = {
+              ...result,
+              timestamp: new Date().toISOString()
+            };
+            const existing = JSON.parse(localStorage.getItem('validationResults') || '[]');
+            const updated = [newResult, ...existing].slice(0, 10);
+            localStorage.setItem('validationResults', JSON.stringify(updated));
+            setValidationResults(updated.slice(0, 5));
+          }}
+        />
+      )}
+      
+      {/* Compliance Manager Modal */}
+      {showComplianceManager && (
+        <ComplianceManager onClose={() => setShowComplianceManager(false)} />
+      )}
+      
+      {/* Advanced Benchmarking Modal */}
+      {showBenchmarking && (
+        <AdvancedBenchmarking onClose={() => setShowBenchmarking(false)} />
+      )}
+      
+      {/* Audit Trail Modal */}
+      {showAuditTrail && (
+        <AuditTrailViewer onClose={() => setShowAuditTrail(false)} />
       )}
     </div>
   );

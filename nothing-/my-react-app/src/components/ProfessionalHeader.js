@@ -96,13 +96,23 @@ const ProfessionalHeader = ({ onLogout, actions = [] }) => {
   const clearAllAlerts = () => {
     localStorage.setItem('recentAlerts', JSON.stringify([]));
     setRecentAlerts([]);
+    // Dispatch storage event to notify other components
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'recentAlerts',
+      newValue: '[]',
+      oldValue: localStorage.getItem('recentAlerts')
+    }));
+    // Also dispatch custom event for immediate updates
+    window.dispatchEvent(new CustomEvent('alertsCleared'));
   };
 
   const loadPendingApprovals = () => {
     if (userRole === USER_ROLES.SUPERVISOR || userRole === USER_ROLES.SUPER_ADMIN) {
-      const workflows = JSON.parse(localStorage.getItem('approval_workflows') || '[]');
+      const workflows = JSON.parse(localStorage.getItem('approvalWorkflows') || '[]');
       const pending = workflows.filter(w => w.status === 'pending').length;
       setPendingCount(pending);
+    } else {
+      setPendingCount(0);
     }
   };
 

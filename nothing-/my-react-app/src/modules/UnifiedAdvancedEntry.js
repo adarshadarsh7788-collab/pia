@@ -5,56 +5,122 @@ import { getThemeClasses } from '../utils/themeUtils';
 import WaterManagementForm from './environmental/WaterManagementForm';
 import WorkforceManagementForm from './social/WorkforceManagementForm';
 import BoardManagementForm from './governance/BoardManagementForm';
+import PatientSafetyForm from './social/PatientSafetyForm';
 
 const UnifiedAdvancedEntry = ({ onClose }) => {
   const { isDark } = useTheme();
   const theme = getThemeClasses(isDark);
   
+  // Helper function to get sector tabs (moved up for use in useState)
+  const getSectorTabs = (sector) => {
+    const baseTabs = [
+      { id: 'climate', label: 'Climate & ISSB', icon: '🌡️', frameworks: ['IFRS S1', 'IFRS S2', 'TCFD'], color: 'red' },
+      { id: 'investment', label: 'Investment & ESG', icon: '💰', frameworks: ['MSCI', 'Sustainalytics'], color: 'blue' },
+      { id: 'supply', label: 'Supply Chain', icon: '🔗', frameworks: ['GRI-308', 'GRI-414'], color: 'purple' }
+    ];
+
+    if (sector === 'mining') {
+      return [
+        { id: 'mining', label: 'Mining Sector', icon: '⛏️', frameworks: ['ICMM', 'EITI', 'ISSB S1/S2'], color: 'amber' },
+        { id: 'zimbabwe', label: 'Zimbabwe Compliance', icon: '🇿🇼', frameworks: ['EMA', 'MMA', 'ZSE'], color: 'green' },
+        ...baseTabs
+      ];
+    } else if (sector === 'healthcare') {
+      return [
+        { id: 'healthcare', label: 'Healthcare Sector', icon: '🏥', frameworks: ['SASB-HC', 'GRI-416', 'FDA'], color: 'pink' },
+        ...baseTabs
+      ];
+    } else {
+      return baseTabs;
+    }
+  };
+  
   const [activeView, setActiveView] = useState('home'); // 'home', 'specialized', 'sector'
   const [selectedModule, setSelectedModule] = useState(null);
-  const [activeSectorTab, setActiveSectorTab] = useState('mining');
+  const [activeSectorTab, setActiveSectorTab] = useState(() => {
+    const sector = localStorage.getItem('currentSector') || 'general';
+    const tabs = getSectorTabs(sector);
+    return tabs.length > 0 ? tabs[0].id : 'climate';
+  });
+  const [selectedSector, setSelectedSector] = useState(null);
   const [sectorFormData, setSectorFormData] = useState({});
   const [toast, setToast] = useState(null);
 
-  // Specialized Modules (from EnhancedDataEntry)
-  const specializedModules = [
-    {
-      id: 'water_management',
-      title: '💧 Mining Water Management',
-      description: 'Track water withdrawal, discharge, tailings water, and mine site water usage',
-      category: 'Environmental',
-      component: WaterManagementForm,
-      color: 'blue',
-      frameworks: ['GRI-303', 'ICMM']
-    },
-    {
-      id: 'workforce_management',
-      title: '👥 Mining Workforce & Safety',
-      description: 'Monitor mining workforce, safety metrics, training, and community relations',
-      category: 'Social',
-      component: WorkforceManagementForm,
-      color: 'purple',
-      frameworks: ['GRI-403', 'GRI-413']
-    },
-    {
-      id: 'board_management',
-      title: '⚖️ Mining Governance & Board',
-      description: 'Track board expertise, governance committees, and mining-specific policies',
-      category: 'Governance',
-      component: BoardManagementForm,
-      color: 'indigo',
-      frameworks: ['IFRS-S1', 'GRI-2-9']
-    }
-  ];
+  // Get sector from localStorage or default to 'general'
+  const currentSector = localStorage.getItem('currentSector') || 'general';
 
-  // Sector-Specific Tabs (from AdvancedESGDataEntry)
-  const sectorTabs = [
-    { id: 'mining', label: 'Mining Sector', icon: '⛏️', frameworks: ['ICMM', 'EITI', 'ISSB S1/S2'], color: 'amber' },
-    { id: 'zimbabwe', label: 'Zimbabwe Compliance', icon: '🇿🇼', frameworks: ['EMA', 'MMA', 'ZSE'], color: 'green' },
-    { id: 'climate', label: 'Climate & ISSB', icon: '🌡️', frameworks: ['IFRS S1', 'IFRS S2', 'TCFD'], color: 'red' },
-    { id: 'investment', label: 'Investment & FDI', icon: '💰', frameworks: ['MSCI', 'Sustainalytics'], color: 'blue' },
-    { id: 'supply', label: 'Supply Chain', icon: '🔗', frameworks: ['Conflict Minerals', 'Due Diligence'], color: 'purple' }
-  ];
+  // Specialized Modules (sector-specific)
+  const getSpecializedModules = (sector) => {
+    if (sector === 'mining') {
+      return [
+        {
+          id: 'water_management',
+          title: '💧 Mining Water Management',
+          description: 'Track water withdrawal, discharge, tailings water, and mine site water usage',
+          category: 'Environmental',
+          component: WaterManagementForm,
+          color: 'blue',
+          frameworks: ['GRI-303', 'ICMM']
+        },
+        {
+          id: 'workforce_management',
+          title: '👥 Mining Workforce & Safety',
+          description: 'Monitor mining workforce, safety metrics, training, and community relations',
+          category: 'Social',
+          component: WorkforceManagementForm,
+          color: 'purple',
+          frameworks: ['GRI-403', 'GRI-413']
+        },
+        {
+          id: 'board_management',
+          title: '⚖️ Mining Governance & Board',
+          description: 'Track board expertise, governance committees, and mining-specific policies',
+          category: 'Governance',
+          component: BoardManagementForm,
+          color: 'indigo',
+          frameworks: ['IFRS-S1', 'GRI-2-9']
+        }
+      ];
+    } else if (sector === 'healthcare') {
+      return [
+        {
+          id: 'patient_safety',
+          title: '🏥 Patient Safety Management',
+          description: 'Track patient safety incidents, adverse events, and quality metrics',
+          category: 'Social',
+          component: PatientSafetyForm,
+          color: 'pink',
+          frameworks: ['SASB-HC-MS', 'GRI-416']
+        }
+      ];
+    } else if (sector === 'manufacturing') {
+      return [
+        {
+          id: 'supply_chain_management',
+          title: '🏭 Supply Chain ESG',
+          description: 'Track supplier assessments, conflict minerals, and supply chain sustainability',
+          category: 'Environmental',
+          component: WaterManagementForm,
+          color: 'green',
+          frameworks: ['GRI-308', 'GRI-414']
+        },
+        {
+          id: 'product_safety',
+          title: '🔍 Product Safety & Quality',
+          description: 'Monitor product recalls, safety incidents, and quality metrics',
+          category: 'Social',
+          component: WorkforceManagementForm,
+          color: 'orange',
+          frameworks: ['GRI-416', 'ISO-9001']
+        }
+      ];
+    }
+    return []; // No specialized modules for other sectors
+  };
+
+  const specializedModules = getSpecializedModules(currentSector);
+
+  const sectorTabs = getSectorTabs(currentSector);
 
   // Sector Metrics
   const sectorMetrics = {
@@ -69,6 +135,20 @@ const UnifiedAdvancedEntry = ({ onClose }) => {
       { id: 'localEmployment', label: 'Local Employment (%)', unit: '%', framework: 'EITI Req 6.3' },
       { id: 'miningFatalities', label: 'Mining Fatalities', unit: 'count', framework: 'ICMM Principle 5' },
       { id: 'conflictMinerals', label: 'Conflict Minerals Risk', unit: 'score', framework: 'OECD Due Diligence' }
+    ],
+    healthcare: [
+      { id: 'patientSafety', label: 'Patient Safety Incidents', unit: 'count', framework: 'SASB-HC-MS-250a.1' },
+      { id: 'medicineAccess', label: 'Medicine Access Programs', unit: 'count', framework: 'SASB-HC-BP-240a.1' },
+      { id: 'drugPricing', label: 'Drug Pricing Transparency', unit: 'score', framework: 'SASB-HC-BP-240a.2' },
+      { id: 'clinicalTrials', label: 'Clinical Trial Participants', unit: 'count', framework: 'SASB-HC-BP-210a.1' },
+      { id: 'adverseEvents', label: 'Adverse Drug Events', unit: 'count', framework: 'GRI-416-2' },
+      { id: 'rdInvestment', label: 'R&D Investment (USD)', unit: 'USD', framework: 'SASB-HC-BP-200a.1' },
+      { id: 'healthcareAccess', label: 'Healthcare Access Score', unit: 'score', framework: 'SASB-HC-DL-240a.1' },
+      { id: 'dataPrivacy', label: 'Patient Data Privacy Breaches', unit: 'count', framework: 'SASB-HC-MS-230a.1' },
+      { id: 'antibiotic', label: 'Antibiotic Resistance Programs', unit: 'count', framework: 'SASB-HC-BP-260a.1' },
+      { id: 'medicalWaste', label: 'Medical Waste Generated (tonnes)', unit: 'tonnes', framework: 'GRI-306-3' },
+      { id: 'healthEquity', label: 'Health Equity Initiatives', unit: 'count', framework: 'SASB-HC-DL-240a.2' },
+      { id: 'productRecalls', label: 'Product Recalls', unit: 'count', framework: 'GRI-416-2' }
     ],
     zimbabwe: [
       { id: 'emaCompliance', label: 'EMA Compliance Score', unit: '%', framework: 'EMA Act' },
@@ -148,7 +228,11 @@ const UnifiedAdvancedEntry = ({ onClose }) => {
               <h2 className={`text-2xl font-bold ${theme.text.primary} flex items-center gap-2`}>
                 🌍 Sector-Specific ESG Metrics
               </h2>
-              <p className={`text-sm ${theme.text.secondary} mt-1`}>Mining, Zimbabwe compliance, Climate, Investment & Supply Chain</p>
+              <p className={`text-sm ${theme.text.secondary} mt-1`}>
+                {currentSector === 'mining' ? 'Mining, Zimbabwe compliance, Climate, Investment & Supply Chain' :
+                 currentSector === 'healthcare' ? 'Healthcare, Climate, Investment & Supply Chain' :
+                 'Climate, Investment & Supply Chain'}
+              </p>
             </div>
             <button 
               onClick={() => setActiveView('home')} 
@@ -241,7 +325,7 @@ const UnifiedAdvancedEntry = ({ onClose }) => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className={`text-2xl font-bold ${theme.text.primary} flex items-center gap-2`}>
-                  🎯 Specialized Mining Modules
+                  🎯 Specialized {currentSector === 'mining' ? 'Mining' : currentSector === 'healthcare' ? 'Healthcare' : 'Industry'} Modules
                 </h2>
                 <p className={`text-sm ${theme.text.secondary} mt-1`}>Advanced calculators with automated metrics</p>
               </div>
@@ -359,24 +443,30 @@ const UnifiedAdvancedEntry = ({ onClose }) => {
             >
               <div className="text-center">
                 <div className="text-5xl mb-4">🎯</div>
-                <h3 className={`text-xl font-bold ${theme.text.primary} mb-3`}>Specialized Mining Modules</h3>
+                <h3 className={`text-xl font-bold ${theme.text.primary} mb-3`}>
+                  Specialized {currentSector === 'mining' ? 'Mining' : currentSector === 'healthcare' ? 'Healthcare' : currentSector === 'manufacturing' ? 'Manufacturing' : 'Industry'} Modules
+                </h3>
                 <p className={`text-sm ${theme.text.secondary} mb-4`}>
-                  Advanced calculators with automated metrics for Water, Workforce, and Board Management
+                  {currentSector === 'mining' ? 'Advanced calculators with automated metrics for Water, Workforce, and Board Management' :
+                   currentSector === 'healthcare' ? 'Advanced calculators for Patient Safety, Clinical Trials, and Healthcare Access' :
+                   currentSector === 'manufacturing' ? 'Advanced calculators for Supply Chain ESG, Product Safety, and Manufacturing Operations' :
+                   'Advanced calculators with automated ESG metrics'}
                 </p>
                 <div className="space-y-2 text-left">
-                  <div className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
-                    <span className="text-blue-500">✓</span> Mining Water Management (GRI-303)
-                  </div>
-                  <div className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
-                    <span className="text-blue-500">✓</span> Mining Workforce & Safety (GRI-403)
-                  </div>
-                  <div className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
-                    <span className="text-blue-500">✓</span> Mining Governance & Board (IFRS-S1)
-                  </div>
+                  {specializedModules.map(module => (
+                    <div key={module.id} className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
+                      <span className="text-blue-500">✓</span> {module.title.replace(/^[^\s]+\s/, '')} ({module.frameworks.join(', ')})
+                    </div>
+                  ))}
+                  {specializedModules.length === 0 && (
+                    <div className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
+                      <span className="text-gray-400">ℹ</span> No specialized modules available for this sector
+                    </div>
+                  )}
                 </div>
                 <div className="mt-4 pt-4 border-t border-blue-200">
                   <span className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-medium">
-                    3 Modules Available
+                    {specializedModules.length} Modules Available
                   </span>
                 </div>
               </div>
@@ -391,22 +481,20 @@ const UnifiedAdvancedEntry = ({ onClose }) => {
                 <div className="text-5xl mb-4">🌍</div>
                 <h3 className={`text-xl font-bold ${theme.text.primary} mb-3`}>Sector-Specific Metrics</h3>
                 <p className={`text-sm ${theme.text.secondary} mb-4`}>
-                  Industry-specific data entry for Mining, Zimbabwe, Climate, Investment & Supply Chain
+                  Industry-specific data entry for {currentSector === 'mining' ? 'Mining, Zimbabwe, Climate, Investment & Supply Chain' :
+                   currentSector === 'healthcare' ? 'Healthcare, Climate, Investment & Supply Chain' :
+                   'Climate, Investment & Supply Chain'}
                 </p>
                 <div className="space-y-2 text-left">
-                  <div className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
-                    <span className="text-green-500">✓</span> Mining Sector (ICMM, EITI, ISSB)
-                  </div>
-                  <div className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
-                    <span className="text-green-500">✓</span> Zimbabwe Compliance (EMA, MMA, ZSE)
-                  </div>
-                  <div className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
-                    <span className="text-green-500">✓</span> Climate & Investment Tracking
-                  </div>
+                  {sectorTabs.map(tab => (
+                    <div key={tab.id} className={`text-xs ${theme.text.secondary} flex items-center gap-2`}>
+                      <span className="text-green-500">✓</span> {tab.label} ({tab.frameworks.join(', ')})
+                    </div>
+                  ))}
                 </div>
                 <div className="mt-4 pt-4 border-t border-green-200">
                   <span className="text-xs px-3 py-1 rounded-full bg-green-100 text-green-800 font-medium">
-                    5 Sectors Available
+                    {sectorTabs.length} Sectors Available
                   </span>
                 </div>
               </div>
