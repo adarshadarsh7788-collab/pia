@@ -8,7 +8,6 @@ import companyLogo from "./companyLogo.jpg";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useTheme } from "./contexts/ThemeContext";
-import { useSector } from "./contexts/SectorContext";
 import { getThemeClasses } from "./utils/themeUtils";
 import ProfessionalHeader from "./components/ProfessionalHeader";
 import { MetricCard, StatusCard } from "./components/ProfessionalCard";
@@ -26,6 +25,7 @@ import { generateProfessionalESGReport } from "./utils/professionalPDFGenerator"
 import { generateExecutiveProfessionalReport } from "./utils/enhancedProfessionalPDF";
 import { generateGRIPDF, generateSASBPDF, generateTCFDPDF, generateBRSRPDF, generateEUTaxonomyPDF } from "./utils/frameworkPDFGenerators";
 import { generateComplianceESGReport } from "./utils/enhancedESGPDFGenerator";
+import { generateProfessionalWhitePaper } from "./utils/professionalWhitePaperPDF";
 import ProfessionalReportTemplate from "./components/ProfessionalReportTemplate";
 import CustomReportBuilder from "./components/CustomReportBuilder";
 import ReportingFrameworkHub from "./components/ReportingFrameworkHub";
@@ -160,7 +160,6 @@ const dedupeEntries = (entries = []) => {
 
 function Reports() {
   const { isDark, toggleTheme } = useTheme();
-  const { currentSector, sectorConfig } = useSector();
   const theme = getThemeClasses(isDark);
   const [currentUser] = useState({ 
     role: localStorage.getItem('userRole') || 'esg_manager', 
@@ -205,9 +204,7 @@ function Reports() {
   const [sortBy, setSortBy] = useState('compliance');
   const [viewMode, setViewMode] = useState('grid');
   const [selectedFrameworks, setSelectedFrameworks] = useState([]);
-  // Get current sector configuration
-  const sectorReportTemplates = sectorConfig?.reportTemplates || [];
-  const sectorComplianceModules = sectorConfig?.complianceModules || [];
+
 
   // Clear all data from localStorage
   const clearAllData = () => {
@@ -462,41 +459,18 @@ function Reports() {
     const normalized = normalizeData(data);
     
     // Get template-specific chart based on selected report template
-    const template = sectorReportTemplates.find(t => t.name === selectedReport);
-    if (!template) {
-      return getDefaultChart(normalized);
-    }
-
-    switch(template.id) {
-      case 'gri_mining':
-      case 'gri_healthcare':
-      case 'gri_manufacturing':
+    switch(selectedReport) {
+      case 'GRI Standards Report':
         return getGRIChart(normalized);
       
-      case 'icmm_report':
-        return getICMMChart(normalized);
-      
-      case 'eiti_report':
-        return getEITIChart(normalized);
-      
-      case 'issb_climate':
-        return getISSBChart(normalized);
-      
-      case 'sasb_healthcare':
-      case 'sasb_manufacturing':
+      case 'SASB Standards Report':
         return getSASBChart(normalized);
       
-      case 'patient_safety':
-        return getPatientSafetyChart(normalized);
+      case 'TCFD Climate Report':
+        return getISSBChart(normalized);
       
-      case 'supply_chain_esg':
-        return getSupplyChainChart(normalized);
-      
-      case 'product_lifecycle':
-        return getLifecycleChart(normalized);
-      
-      case 'circular_economy':
-        return getCircularEconomyChart(normalized);
+      case 'BRSR Compliance Report':
+        return getGRIChart(normalized); // Use GRI chart for BRSR
       
       default:
         return getDefaultChart(normalized);
@@ -1145,16 +1119,16 @@ function Reports() {
     const normalizedData = normalizeData(esgData);
 
     const companyName = (esgData && esgData.length > 0 && esgData[0].companyName) || 'Company';
-    const sector = (esgData && esgData.length > 0 && esgData[0].sector) || currentSector || 'General';
+    const sector = (esgData && esgData.length > 0 && esgData[0].sector) || localStorage.getItem('currentSector') || 'General';
     const region = (esgData && esgData.length > 0 && esgData[0].region) || 'Global';
     
-    const pdf = generateComplianceESGReport(selectedReport, normalizedData, {
+    const pdf = generateProfessionalWhitePaper(selectedReport, normalizedData, {
       companyName,
       reportPeriod: selectedYear || new Date().getFullYear(),
+      authorName: 'ESG Team',
+      authorTitle: 'Sustainability Director',
       sector: sector.charAt(0).toUpperCase() + sector.slice(1),
-      region,
-      assuranceLevel: 'Limited',
-      reportingFramework: selectedReport
+      region
     });
 
     const filename = `ESG-Compliance-Report-${selectedReport.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
@@ -1569,47 +1543,7 @@ function Reports() {
 
 
 
-        {/* Sector-Specific Banner */}
-        <div className={`mb-6 rounded-2xl p-4 border transition-all duration-300 ${
-          isDark 
-            ? `bg-gradient-to-r from-${sectorConfig?.color || 'blue'}-900/50 to-purple-900/50 border-${sectorConfig?.color || 'blue'}-700/50` 
-            : `bg-gradient-to-r from-${sectorConfig?.color || 'blue'}-50 to-purple-50 border-${sectorConfig?.color || 'blue'}-200`
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${
-                sectorConfig?.color === 'amber' ? 'from-amber-500 to-orange-500' :
-                sectorConfig?.color === 'pink' ? 'from-pink-500 to-rose-500' :
-                sectorConfig?.color === 'blue' ? 'from-blue-500 to-indigo-500' :
-                'from-gray-500 to-gray-600'
-              } flex items-center justify-center text-white text-lg shadow-lg`}>
-                {sectorConfig?.icon || '🏢'}
-              </div>
-              <div>
-                <h3 className={`font-semibold ${theme.text.primary}`}>
-                  {sectorConfig?.name || 'General'} Sector Reports
-                </h3>
-                <p className={`text-sm ${theme.text.secondary}`}>
-                  Specialized reporting templates and compliance modules for {sectorConfig?.name?.toLowerCase() || 'your industry'}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => window.location.href = '/sectors'}
-                className={`px-4 py-2 rounded-lg border transition-colors ${theme.border.primary} ${theme.hover.card}`}
-              >
-                Change Sector
-              </button>
-              <button
-                onClick={() => window.location.href = `/sector/${currentSector}`}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-              >
-                Sector Dashboard →
-              </button>
-            </div>
-          </div>
-        </div>
+
         <div className={`mb-6 p-4 rounded-lg ${theme.bg.subtle} border-l-4 border-blue-500`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -2120,7 +2054,12 @@ function Reports() {
               </div>
             </div>
             <div className="space-y-3">
-              {sectorReportTemplates.map((report, i) => (
+              {[
+                { name: 'GRI Standards Report', icon: '📊', frameworks: ['GRI'] },
+                { name: 'SASB Standards Report', icon: '📋', frameworks: ['SASB'] },
+                { name: 'TCFD Climate Report', icon: '🌡️', frameworks: ['TCFD'] },
+                { name: 'BRSR Compliance Report', icon: '🇮🇳', frameworks: ['BRSR'] }
+              ].map((report, i) => (
                 <div
                   key={i}
                   className={`border-2 p-4 rounded-xl cursor-pointer transition-all duration-200 hover:scale-102 ${
@@ -2145,15 +2084,49 @@ function Reports() {
                     )}
                   </div>
                   <div className="mt-3 flex items-center gap-2">
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    isDark ? `bg-${sectorConfig?.color || 'blue'}-900 text-${sectorConfig?.color || 'blue'}-300` : `bg-${sectorConfig?.color || 'blue'}-100 text-${sectorConfig?.color || 'blue'}-800`
-                  }`}>
-                    {sectorConfig?.name || 'General'}
-                  </span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      isDark ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      Standard ESG
+                    </span>
                     <span className={`text-xs ${theme.text.muted}`}>• Updated 2024</span>
                   </div>
                 </div>
               ))}
+            </div>
+            
+            {/* Generate Report Button */}
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => exportPDF()}
+                disabled={isGenerating || data.length === 0}
+                className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 ${
+                  isGenerating || data.length === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : isDark 
+                      ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:via-teal-500 hover:to-cyan-500 text-white shadow-2xl hover:shadow-emerald-500/30'
+                      : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:via-teal-400 hover:to-cyan-400 text-white shadow-2xl hover:shadow-emerald-500/40'
+                } transform hover:scale-105 hover:-translate-y-1`}
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-2xl">📊</span>
+                  <div>
+                    <div>{isGenerating ? 'Generating Report...' : 'Generate Report'}</div>
+                    <div className="text-sm opacity-90">
+                      {data.length === 0 ? 'No data available' : `${selectedReport} • ${data.length} data points`}
+                    </div>
+                  </div>
+                  {!isGenerating && data.length > 0 && (
+                    <div className="w-3 h-3 rounded-full bg-white/30 animate-pulse"></div>
+                  )}
+                </div>
+              </button>
+              
+              {data.length === 0 && (
+                <p className={`text-center text-sm mt-2 ${theme.text.secondary}`}>
+                  Add ESG data via <Link to="/data-entry" className="text-blue-600 hover:underline">Data Entry</Link> to generate reports
+                </p>
+              )}
             </div>
           </div>
 
@@ -2185,86 +2158,7 @@ function Reports() {
         <hr className="my-4" />
       </div>
 
-        {/* Sector-Specific Compliance - Dynamic based on current sector */}
-        {(() => {
-          if (!sectorConfig) return null;
-          
-          return (
-            <div className={`p-6 rounded-xl shadow-lg mb-8 ${theme.bg.card}`}>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className={`text-2xl font-bold ${theme.text.primary}`}>{sectorConfig.icon} {sectorConfig.name} ESG Compliance</h2>
-                  <p className={`text-sm ${theme.text.secondary}`}>{sectorConfig.name} Industry Standards & Requirements</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-lg px-3 py-1 rounded-full ${
-                    sectorConfig.color === 'amber' ? 'bg-amber-100 text-amber-800' :
-                    sectorConfig.color === 'pink' ? 'bg-pink-100 text-pink-800' :
-                    sectorConfig.color === 'blue' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {sectorConfig.name} Focus
-                  </span>
-                </div>
-              </div>
-                
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {sectorComplianceModules.map((module, idx) => (
-                  <div key={idx} className={`p-4 rounded-lg text-center ${
-                    sectorConfig.color === 'amber' ? 'bg-amber-50 border-2 border-amber-500' :
-                    sectorConfig.color === 'pink' ? 'bg-pink-50 border-2 border-pink-500' :
-                    sectorConfig.color === 'blue' ? 'bg-blue-50 border-2 border-blue-500' :
-                    'bg-gray-50 border-2 border-gray-500'
-                  }`}>
-                    <div className="text-2xl mb-2">{sectorConfig.icon}</div>
-                    <div className={`text-xs font-bold ${
-                      sectorConfig.color === 'amber' ? 'text-amber-800' :
-                      sectorConfig.color === 'pink' ? 'text-pink-800' :
-                      sectorConfig.color === 'blue' ? 'text-blue-800' :
-                      'text-gray-800'
-                    }`}>{module.id.toUpperCase()}</div>
-                    <div className={`text-xs mt-1 ${
-                      sectorConfig.color === 'amber' ? 'text-amber-600' :
-                      sectorConfig.color === 'pink' ? 'text-pink-600' :
-                      sectorConfig.color === 'blue' ? 'text-blue-600' :
-                      'text-gray-600'
-                    }`}>{module.name}</div>
-                  </div>
-                ))}
-              </div>
-                
-              <div className={`mt-6 p-4 rounded-lg ${theme.bg.subtle}`}>
-                <h3 className={`font-semibold ${theme.text.primary} mb-3`}>{sectorConfig.icon} {sectorConfig.name} ESG Focus Areas</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className={`font-medium ${theme.text.secondary}`}>Environmental:</span>
-                    <ul className="mt-2 space-y-1">
-                      {sectorConfig.metrics.environmental.map((metric, idx) => (
-                        <li key={idx} className={theme.text.primary}>• {metric.replace(/_/g, ' ')}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <span className={`font-medium ${theme.text.secondary}`}>Social:</span>
-                    <ul className="mt-2 space-y-1">
-                      {sectorConfig.metrics.social.map((metric, idx) => (
-                        <li key={idx} className={theme.text.primary}>• {metric.replace(/_/g, ' ')}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <span className={`font-medium ${theme.text.secondary}`}>Governance:</span>
-                    <ul className="mt-2 space-y-1">
-                      {sectorConfig.metrics.governance.map((metric, idx) => (
-                        <li key={idx} className={theme.text.primary}>• {metric.replace(/_/g, ' ')}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+
 
         {/* Framework Compliance Summary */}
         <FrameworkComplianceSummary complianceData={complianceSummary} />

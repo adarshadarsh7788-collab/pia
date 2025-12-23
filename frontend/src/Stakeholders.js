@@ -11,6 +11,8 @@ const Stakeholders = () => {
   const [selectedStakeholder, setSelectedStakeholder] = useState(null);
   const [animationClass, setAnimationClass] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showIconDropdown, setShowIconDropdown] = useState(false);
+  const [editingStakeholder, setEditingStakeholder] = useState(null);
   const [newStakeholder, setNewStakeholder] = useState({
     name: '',
     type: 'External',
@@ -23,7 +25,8 @@ const Stakeholders = () => {
     department: '',
     influence: 'Medium',
     interest: 'Medium',
-    stakeholderPercentage: 0
+    stakeholderPercentage: 0,
+    icon: '👤'
   });
   
   const [stakeholders, setStakeholders] = useState([
@@ -173,16 +176,34 @@ const Stakeholders = () => {
                 <p className={`${theme.text.secondary} text-lg`}>Comprehensive stakeholder engagement and relationship tracking</p>
               </div>
             </div>
-            <button 
-              onClick={() => setShowAddForm(true)}
-              className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
-                isDark 
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-purple-500/25'
-                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg hover:shadow-indigo-500/25'
-              } transform hover:scale-105`}
-            >
-              ➕ Add Stakeholder
-            </button>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => {
+                  setEditingStakeholder(null);
+                  setNewStakeholder({
+                    name: '', type: 'External', engagement: 'Medium', priority: 'Medium',
+                    description: '', concerns: '', nextAction: '', contactEmail: '',
+                    department: '', influence: 'Medium', interest: 'Medium', stakeholderPercentage: 0,
+                    icon: '👤'
+                  });
+                  setShowAddForm(true);
+                }}
+                className={`group relative px-8 py-4 rounded-2xl font-semibold text-lg transition-all duration-300 overflow-hidden ${
+                  isDark 
+                    ? 'bg-gradient-to-r from-teal-600 via-emerald-600 to-cyan-600 hover:from-teal-500 hover:via-emerald-500 hover:to-cyan-500 text-white shadow-2xl hover:shadow-teal-500/30'
+                    : 'bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 hover:from-teal-400 hover:via-emerald-400 hover:to-cyan-400 text-white shadow-2xl hover:shadow-teal-500/40'
+                } transform hover:scale-105 hover:-translate-y-1`}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="relative flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                    <span className="text-lg">+</span>
+                  </div>
+                  <span>Add New Stakeholder</span>
+                  <div className="w-2 h-2 rounded-full bg-white/40 animate-pulse"></div>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Quick Stats */}
@@ -224,7 +245,7 @@ const Stakeholders = () => {
             } shadow-2xl`}>
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className={`text-2xl font-bold ${theme.text.primary}`}>Add New Stakeholder</h2>
+                  <h2 className={`text-2xl font-bold ${theme.text.primary}`}>{editingStakeholder ? 'Update Stakeholder' : 'Add New Stakeholder'}</h2>
                   <button 
                     onClick={() => setShowAddForm(false)}
                     className={`p-2 rounded-lg transition-all ${
@@ -237,35 +258,61 @@ const Stakeholders = () => {
                 
                 <form onSubmit={(e) => {
                   e.preventDefault();
-                  const stakeholder = {
-                    id: stakeholders.length + 1,
-                    name: newStakeholder.name,
-                    type: newStakeholder.type,
-                    engagement: newStakeholder.engagement,
-                    priority: newStakeholder.priority,
-                    description: newStakeholder.description,
-                    concerns: newStakeholder.concerns.split(',').map(c => c.trim()).filter(c => c),
-                    nextAction: newStakeholder.nextAction,
-                    lastContact: new Date().toISOString().split('T')[0],
-                    icon: newStakeholder.type === 'Financial' ? '💰' : 
-                          newStakeholder.type === 'Internal' ? '👥' :
-                          newStakeholder.type === 'External' ? '🛍️' :
-                          newStakeholder.type === 'Compliance' ? '🏛️' :
-                          newStakeholder.type === 'Social' ? '🏘️' :
-                          newStakeholder.type === 'Business' ? '🤝' : '👤',
-                    satisfaction: Math.floor(Math.random() * 30) + 60,
-                    contactEmail: newStakeholder.contactEmail,
-                    department: newStakeholder.department,
-                    influence: newStakeholder.influence,
-                    interest: newStakeholder.interest,
-                    stakeholderPercentage: newStakeholder.stakeholderPercentage
-                  };
-                  setStakeholders([...stakeholders, stakeholder]);
+                  if (editingStakeholder) {
+                    // Update existing stakeholder - only modify changed fields
+                    const updatedStakeholders = stakeholders.map(s => 
+                      s.id === editingStakeholder.id 
+                        ? {
+                            ...s, // Keep all existing data
+                            // Only update fields that may have changed
+                            ...(newStakeholder.name !== s.name && { name: newStakeholder.name }),
+                            ...(newStakeholder.type !== s.type && { type: newStakeholder.type }),
+                            ...(newStakeholder.engagement !== s.engagement && { engagement: newStakeholder.engagement }),
+                            ...(newStakeholder.priority !== s.priority && { priority: newStakeholder.priority }),
+                            ...(newStakeholder.description !== s.description && { description: newStakeholder.description }),
+                            ...(newStakeholder.concerns !== (Array.isArray(s.concerns) ? s.concerns.join(', ') : s.concerns || '') && { 
+                              concerns: newStakeholder.concerns.split(',').map(c => c.trim()).filter(c => c) 
+                            }),
+                            ...(newStakeholder.nextAction !== s.nextAction && { nextAction: newStakeholder.nextAction }),
+                            ...(newStakeholder.contactEmail !== (s.contactEmail || '') && { contactEmail: newStakeholder.contactEmail }),
+                            ...(newStakeholder.department !== (s.department || '') && { department: newStakeholder.department }),
+                            ...(newStakeholder.influence !== (s.influence || 'Medium') && { influence: newStakeholder.influence }),
+                            ...(newStakeholder.interest !== (s.interest || 'Medium') && { interest: newStakeholder.interest }),
+                            ...(newStakeholder.stakeholderPercentage !== (s.stakeholderPercentage || 0) && { stakeholderPercentage: newStakeholder.stakeholderPercentage }),
+                            ...(newStakeholder.icon !== s.icon && { icon: newStakeholder.icon })
+                          }
+                        : s
+                    );
+                    setStakeholders(updatedStakeholders);
+                  } else {
+                    // Add new stakeholder
+                    const stakeholder = {
+                      id: stakeholders.length + 1,
+                      name: newStakeholder.name,
+                      type: newStakeholder.type,
+                      engagement: newStakeholder.engagement,
+                      priority: newStakeholder.priority,
+                      description: newStakeholder.description,
+                      concerns: newStakeholder.concerns.split(',').map(c => c.trim()).filter(c => c),
+                      nextAction: newStakeholder.nextAction,
+                      lastContact: new Date().toISOString().split('T')[0],
+                      icon: newStakeholder.icon,
+                      satisfaction: Math.floor(Math.random() * 30) + 60,
+                      contactEmail: newStakeholder.contactEmail,
+                      department: newStakeholder.department,
+                      influence: newStakeholder.influence,
+                      interest: newStakeholder.interest,
+                      stakeholderPercentage: newStakeholder.stakeholderPercentage
+                    };
+                    setStakeholders([...stakeholders, stakeholder]);
+                  }
                   setNewStakeholder({
                     name: '', type: 'External', engagement: 'Medium', priority: 'Medium',
                     description: '', concerns: '', nextAction: '', contactEmail: '',
-                    department: '', influence: 'Medium', interest: 'Medium', stakeholderPercentage: 0
+                    department: '', influence: 'Medium', interest: 'Medium', stakeholderPercentage: 0,
+                    icon: '👤'
                   });
+                  setEditingStakeholder(null);
                   setShowAddForm(false);
                 }} className="space-y-4">
                   
@@ -389,25 +436,47 @@ const Stakeholders = () => {
                       />
                     </div>
                     
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${theme.text.primary}`}>Influence Level</label>
-                      <select
-                        value={newStakeholder.influence}
-                        onChange={(e) => setNewStakeholder({...newStakeholder, influence: e.target.value})}
-                        className={`w-full p-3 rounded-lg border ${
+                    <div className="relative">
+                      <label className={`block text-sm font-medium mb-2 ${theme.text.primary}`}>Icon</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowIconDropdown(!showIconDropdown)}
+                        className={`w-full p-3 rounded-lg border flex items-center justify-between ${
                           isDark 
                             ? 'bg-gray-700 border-gray-600 text-white' 
                             : 'bg-white border-gray-300 text-gray-900'
                         } focus:ring-2 focus:ring-blue-500`}
                       >
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                      </select>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{newStakeholder.icon}</span>
+                          <span>Select Icon</span>
+                        </div>
+                        <span className={`transition-transform ${showIconDropdown ? 'rotate-180' : ''}`}>▼</span>
+                      </button>
+                      {showIconDropdown && (
+                        <div className={`absolute top-full left-0 right-0 mt-1 p-2 rounded-lg border shadow-lg z-10 ${
+                          isDark ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'
+                        }`}>
+                          <div className="grid grid-cols-8 gap-1">
+                            {['👤', '💰', '👥', '🛍️', '🏛️', '🏘️', '🤝', '🏢', '🏭', '🏥', '🏫', '🏬', '🏦', '🏨', '🏪', '🌍'].map((emoji, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  setNewStakeholder({...newStakeholder, icon: emoji});
+                                  setShowIconDropdown(false);
+                                }}
+                                className={`p-2 text-lg rounded hover:bg-gray-100 transition-colors ${
+                                  isDark ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
+                                }`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  
-                  <div>
                     <label className={`block text-sm font-medium mb-2 ${theme.text.primary}`}>Description</label>
                     <textarea
                       value={newStakeholder.description}
@@ -461,7 +530,7 @@ const Stakeholders = () => {
                           : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white'
                       } shadow-lg hover:shadow-xl transform hover:scale-105`}
                     >
-                      ✅ Add Stakeholder
+                      ✅ {editingStakeholder ? 'Update Stakeholder' : 'Add Stakeholder'}
                     </button>
                     <button
                       type="button"
@@ -521,14 +590,14 @@ const Stakeholders = () => {
                         e.stopPropagation();
                         setStakeholders(stakeholders.filter(s => s.id !== stakeholder.id));
                       }}
-                      className={`p-2 rounded-lg transition-all hover:scale-110 ${
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
                         isDark 
-                          ? 'bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300'
-                          : 'bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700'
+                          ? 'bg-red-600 hover:bg-red-700 text-white'
+                          : 'bg-red-500 hover:bg-red-600 text-white'
                       }`}
                       title="Delete Stakeholder"
                     >
-                      🗑️
+                      Delete
                     </button>
                     <div className={`text-2xl transition-transform duration-300 ${
                       selectedStakeholder === stakeholder.id ? 'rotate-180' : ''
@@ -575,6 +644,11 @@ const Stakeholders = () => {
                       className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500"
                       style={{ width: `${stakeholder.satisfaction}%` }}
                     ></div>
+                  </div>
+                  <div className="flex justify-between mt-1 text-xs text-gray-400">
+                    <span>0%</span>
+                    <span>50%</span>
+                    <span>100%</span>
                   </div>
                 </div>
 
@@ -643,11 +717,33 @@ const Stakeholders = () => {
                       }`}>
                         📞 Contact
                       </button>
-                      <button className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                        isDark 
-                          ? 'bg-gray-700 hover:bg-gray-600 text-white' 
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                      }`}>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingStakeholder(stakeholder);
+                          setNewStakeholder({
+                            name: stakeholder.name,
+                            type: stakeholder.type,
+                            engagement: stakeholder.engagement,
+                            priority: stakeholder.priority,
+                            description: stakeholder.description,
+                            concerns: Array.isArray(stakeholder.concerns) ? stakeholder.concerns.join(', ') : stakeholder.concerns || '',
+                            nextAction: stakeholder.nextAction,
+                            contactEmail: stakeholder.contactEmail || '',
+                            department: stakeholder.department || '',
+                            influence: stakeholder.influence || 'Medium',
+                            interest: stakeholder.interest || 'Medium',
+                            stakeholderPercentage: stakeholder.stakeholderPercentage || 0,
+                            icon: stakeholder.icon
+                          });
+                          setShowAddForm(true);
+                        }}
+                        className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                          isDark 
+                            ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                            : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                        }`}
+                      >
                         📝 Update
                       </button>
                     </div>

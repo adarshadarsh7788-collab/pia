@@ -188,8 +188,8 @@ const ProfessionalHeader = ({ onLogout, actions = [] }) => {
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 ${
       isDark 
-        ? 'bg-gray-900/95 border-gray-700' 
-        : 'bg-gradient-to-r from-green-600 to-emerald-700 border-green-500'
+        ? 'bg-gradient-to-r from-teal-700 to-emerald-800 border-teal-600' 
+        : 'bg-gradient-to-r from-teal-600 to-emerald-700 border-teal-500'
     } backdrop-blur-xl border-b shadow-sm`}>
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
@@ -202,7 +202,7 @@ const ProfessionalHeader = ({ onLogout, actions = [] }) => {
               <h1 className={`text-lg font-bold ${
                 isDark ? 'text-white' : 'text-white'
               }`}>E-S-Genius</h1>
-              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-green-100'}`}>ESG Platform</p>
+              <p className={`text-xs ${isDark ? 'text-teal-100' : 'text-teal-100'}`}>ESG Platform</p>
             </div>
           </div>
 
@@ -217,10 +217,10 @@ const ProfessionalHeader = ({ onLogout, actions = [] }) => {
                   to={item.path}
                   className={`flex items-center space-x-1 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
                     isActive
-                      ? (isDark ? 'bg-blue-600 text-white' : 'bg-white/20 text-white')
+                      ? (isDark ? 'bg-white/20 text-white' : 'bg-white/20 text-white')
                       : isDark
-                        ? 'text-gray-300 hover:text-white hover:bg-gray-700/50'
-                        : 'text-green-100 hover:text-white hover:bg-white/10'
+                        ? 'text-teal-100 hover:text-white hover:bg-white/10'
+                        : 'text-teal-100 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <span className="text-sm">{item.icon}</span>
@@ -237,8 +237,8 @@ const ProfessionalHeader = ({ onLogout, actions = [] }) => {
               onClick={toggleTheme}
               className={`p-2 rounded-lg transition-all duration-200 ${
                 isDark 
-                  ? 'text-yellow-400 hover:bg-gray-700/50' 
-                  : 'text-green-100 hover:bg-white/10'
+                  ? 'text-teal-100 hover:bg-white/10' 
+                  : 'text-teal-100 hover:bg-white/10'
               }`}
             >
               <span className="text-lg">{isDark ? '☀️' : '🌙'}</span>
@@ -250,8 +250,8 @@ const ProfessionalHeader = ({ onLogout, actions = [] }) => {
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={`relative p-2 rounded-lg transition-all duration-200 ${
                   isDark 
-                    ? 'text-gray-300 hover:bg-gray-700/50' 
-                    : 'text-green-100 hover:bg-white/10'
+                    ? 'text-teal-100 hover:bg-white/10' 
+                    : 'text-teal-100 hover:bg-white/10'
                 }`}
               >
                 <span className="text-lg">🔔</span>
